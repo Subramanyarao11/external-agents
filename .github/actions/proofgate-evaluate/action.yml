@@ -1,0 +1,106 @@
+name: ProofGate Evaluate
+description: Build an Entire-backed Change Passport and enforce a deterministic CI decision.
+
+inputs:
+  repository-id:
+    description: Approved non-secret identifier for the repository.
+    required: true
+  repository-path:
+    description: Target repository path, relative to GITHUB_WORKSPACE.
+    default: .
+  commit:
+    description: Commit or revision to evaluate.
+    default: HEAD
+  checkpoint:
+    description: Entire checkpoint ID, or auto to read the commit trailer.
+    default: auto
+  test-report:
+    description: Optional ProofGate test-report JSON, relative to GITHUB_WORKSPACE.
+    default: ""
+  repository-opted-in:
+    description: Confirm this repository opted in to governed ProofGate processing.
+    default: "false"
+  repository-is-public:
+    description: Mark the repository as public.
+    default: "false"
+  sensitive-prefixes:
+    description: Optional comma-separated sensitive path prefixes.
+    default: ""
+  denied-prefixes:
+    description: Optional comma-separated paths that can never be auto-approved.
+    default: ""
+  fail-on:
+    description: Fail on approval-required, warn, or never.
+    default: approval-required
+  result-path:
+    description: Machine-readable result path, relative to GITHUB_WORKSPACE.
+    default: proofgate-result.json
+
+outputs:
+  decision:
+    description: PASS, WARN, or APPROVAL_REQUIRED.
+    value: ${{ steps.gate.outputs.decision }}
+  risk-score:
+    description: Deterministic risk score from 0 to 100.
+    value: ${{ steps.gate.outputs.risk_score }}
+  hard-stops:
+    description: Number of non-negotiable review blockers.
+    value: ${{ steps.gate.outputs.hard_stops }}
+  checkpoint-id:
+    description: Entire checkpoint attached to the evaluated commit.
+    value: ${{ steps.gate.outputs.checkpoint_id }}
+  result-path:
+    description: Path to the generated machine-readable result.
+    value: ${{ steps.gate.outputs.result_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      with:
+        go-version-file: ${{ github.action_path }}/../../../proofgate/go.mod
+        cache: false
+
+    - name: Install Entire CLI
+      shell: bash
+      run: |
+        install_dir="$RUNNER_TEMP/proofgate-bin"
+        mkdir -p "$install_dir"
+        GOBIN="$install_dir" go install github.com/entireio/cli/cmd/entire@v0.10.5
+        echo "$install_dir" >> "$GITHUB_PATH"
+
+    - id: gate
+      name: Evaluate governed change
+      shell: bash
+      env:
+        PROOFGATE_REPOSITORY_ID: ${{ inputs.repository-id }}
+        PROOFGATE_REPOSITORY_PATH: ${{ inputs.repository-path }}
+        PROOFGATE_COMMIT: ${{ inputs.commit }}
+        PROOFGATE_CHECKPOINT: ${{ inputs.checkpoint }}
+        PROOFGATE_TEST_REPORT: ${{ inputs.test-report }}
+        PROOFGATE_OPTED_IN: ${{ inputs.repository-opted-in }}
+        PROOFGATE_IS_PUBLIC: ${{ inputs.repository-is-public }}
+        PROOFGATE_SENSITIVE_PREFIXES: ${{ inputs.sensitive-prefixes }}
+        PROOFGATE_DENIED_PREFIXES: ${{ inputs.denied-prefixes }}
+        PROOFGATE_FAIL_ON: ${{ inputs.fail-on }}
+        PROOFGATE_RESULT_PATH: ${{ inputs.result-path }}
+      run: |
+        args=(
+          ci-gate
+          --repo "$GITHUB_WORKSPACE/$PROOFGATE_REPOSITORY_PATH"
+          --repo-id "$PROOFGATE_REPOSITORY_ID"
+          --commit "$PROOFGATE_COMMIT"
+          --checkpoint "$PROOFGATE_CHECKPOINT"
+          --repo-opted-in="$PROOFGATE_OPTED_IN"
+          --repo-public="$PROOFGATE_IS_PUBLIC"
+          --sensitive-prefixes "$PROOFGATE_SENSITIVE_PREFIXES"
+          --denied-prefixes "$PROOFGATE_DENIED_PREFIXES"
+          --fail-on "$PROOFGATE_FAIL_ON"
+          --result "$GITHUB_WORKSPACE/$PROOFGATE_RESULT_PATH"
+        )
+        if [[ -n "$PROOFGATE_TEST_REPORT" ]]; then
+          args+=(--tests "$GITHUB_WORKSPACE/$PROOFGATE_TEST_REPORT")
+        fi
+        cd "$GITHUB_ACTION_PATH/../../../proofgate"
+        go run ./cmd/proofgate "${args[@]}"

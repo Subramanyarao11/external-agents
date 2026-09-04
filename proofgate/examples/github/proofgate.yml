@@ -1,0 +1,47 @@
+name: ProofGate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the candidate change
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch Entire checkpoint evidence
+        shell: bash
+        run: git fetch origin '+refs/heads/entire/*:refs/remotes/origin/entire/*'
+
+      - name: Run tests and produce allowlisted evidence
+        shell: bash
+        run: |
+          # Replace this sample with your real test commands. The report contains
+          # only suite names, counts, status and an opaque CI evidence ID.
+          cp proofgate/examples/test-report.json proofgate-test-report.json
+
+      - id: proofgate
+        name: Evaluate the change
+        uses: ./.github/actions/proofgate-evaluate
+        with:
+          repository-id: external-agents-demo
+          repository-opted-in: "true"
+          test-report: proofgate-test-report.json
+          denied-prefixes: payments/production,infra/production
+          fail-on: approval-required
+
+      - name: Preserve the Change Passport
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: proofgate-${{ github.run_id }}
+          path: proofgate-result.json
+          if-no-files-found: error
+          retention-days: 14

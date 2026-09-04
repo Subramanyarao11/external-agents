@@ -19,7 +19,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: proofgate <build-passport|gate|evaluate|export|default-policy> [flags]")
+		fatalf("usage: proofgate <build-passport|gate|ci-gate|evaluate|export|default-policy> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
@@ -27,6 +27,8 @@ func main() {
 		err = buildPassport(os.Args[2:], os.Stdout)
 	case "gate":
 		err = gate(os.Args[2:], os.Stdout)
+	case "ci-gate":
+		err = ciGate(os.Args[2:], os.Stdout)
 	case "evaluate":
 		err = evaluate(os.Args[2:], os.Stdout)
 	case "default-policy":

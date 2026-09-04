@@ -34,6 +34,25 @@ are useful. An AI-authored commit without an Entire trailer stays marked as
 AI-authored and therefore triggers the provenance hard stop; it is never
 silently treated as human-authored.
 
+For CI, use the composite action in `.github/actions/proofgate-evaluate`. It
+publishes a compact GitHub job summary, exposes decision/score/checkpoint
+outputs, and writes the full structured result for artifact retention:
+
+```yaml
+- id: proofgate
+  uses: ./.github/actions/proofgate-evaluate
+  with:
+    repository-id: mobile-checkout
+    repository-opted-in: "true"
+    test-report: proofgate-test-report.json
+    fail-on: approval-required
+```
+
+`proofgate/examples/github/proofgate.yml` is a complete workflow template. The
+default threshold fails only `APPROVAL_REQUIRED`; choose `warn` for a stricter
+gate or `never` for observation mode. The full JSON is still produced before a
+blocking exit so an `if: always()` artifact step can preserve the evidence.
+
 Decisions are `PASS`, `WARN`, or `APPROVAL_REQUIRED`. Hard stops always require
 review, even when their numeric score alone would be lower than the threshold.
 
