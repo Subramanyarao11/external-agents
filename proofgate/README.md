@@ -16,6 +16,24 @@ go run ./cmd/proofgate evaluate \
   --now 2026-09-04T12:00:00Z
 ```
 
+Build a passport directly from a real git commit, its `Entire-Checkpoint`
+trailer, Entire's checkpoint explanation, the git diff, and structured CI test
+evidence:
+
+```bash
+go run ./cmd/proofgate gate \
+  --repo /path/to/target-repository \
+  --repo-id mobile-checkout \
+  --repo-opted-in \
+  --tests examples/test-report.json
+```
+
+`gate` emits both the generated passport and its deterministic result.
+`build-passport` emits only the passport when separate evaluation/export steps
+are useful. An AI-authored commit without an Entire trailer stays marked as
+AI-authored and therefore triggers the provenance hard stop; it is never
+silently treated as human-authored.
+
 Decisions are `PASS`, `WARN`, or `APPROVAL_REQUIRED`. Hard stops always require
 review, even when their numeric score alone would be lower than the threshold.
 

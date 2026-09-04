@@ -13,15 +13,20 @@ import (
 
 	"github.com/entireio/external-agents/proofgate/contracts"
 	"github.com/entireio/external-agents/proofgate/engine"
+	"github.com/entireio/external-agents/proofgate/passportbuilder"
 	"github.com/entireio/external-agents/proofgate/warehouse"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: proofgate <evaluate|export|default-policy> [flags]")
+		fatalf("usage: proofgate <build-passport|gate|evaluate|export|default-policy> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
+	case "build-passport":
+		err = buildPassport(os.Args[2:], os.Stdout)
+	case "gate":
+		err = gate(os.Args[2:], os.Stdout)
 	case "evaluate":
 		err = evaluate(os.Args[2:], os.Stdout)
 	case "default-policy":
@@ -34,6 +39,126 @@ func main() {
 	if err != nil {
 		fatalf("%v", err)
 	}
+}
+
+type gateOutput struct {
+	Passport contracts.ChangePassport `json:"passport"`
+	Result   engine.Result            `json:"result"`
+}
+
+type buildOptions struct {
+	repositoryPath     string
+	repositoryID       string
+	commit             string
+	checkpointID       string
+	intent             string
+	testsPath          string
+	repositoryOptedIn  bool
+	repositoryIsPublic bool
+	aiAuthored         bool
+	sensitivePrefixes  string
+	deniedPrefixes     string
+	nowValue           string
+}
+
+func buildPassport(args []string, stdout io.Writer) error {
+	options, err := parseBuildOptions("build-passport", args, false)
+	if err != nil {
+		return err
+	}
+	passport, _, err := buildFromOptions(options)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, passport)
+}
+
+func gate(args []string, stdout io.Writer) error {
+	options, err := parseBuildOptions("gate", args, true)
+	if err != nil {
+		return err
+	}
+	passport, now, err := buildFromOptions(options)
+	if err != nil {
+		return err
+	}
+	result, err := engine.Evaluate(passport, engine.DefaultPolicy(), now)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, gateOutput{Passport: passport, Result: result})
+}
+
+func parseBuildOptions(name string, args []string, includeNow bool) (buildOptions, error) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var options buildOptions
+	flags.StringVar(&options.repositoryPath, "repo", ".", "path to the git repository")
+	flags.StringVar(&options.repositoryID, "repo-id", "", "synthetic or approved repository identifier")
+	flags.StringVar(&options.commit, "commit", "HEAD", "commit or revision to inspect")
+	flags.StringVar(&options.checkpointID, "checkpoint", "auto", "Entire checkpoint ID, or auto for commit trailer")
+	flags.StringVar(&options.intent, "intent", "", "safe intent summary; defaults to commit subject")
+	flags.StringVar(&options.testsPath, "tests", "", "ProofGate test report JSON")
+	flags.BoolVar(&options.repositoryOptedIn, "repo-opted-in", false, "confirm repository opt-in for governed export")
+	flags.BoolVar(&options.repositoryIsPublic, "repo-public", false, "mark repository as public")
+	flags.BoolVar(&options.aiAuthored, "ai-authored", true, "mark the change as AI-authored")
+	flags.StringVar(&options.sensitivePrefixes, "sensitive-prefixes", "", "comma-separated sensitive path prefixes")
+	flags.StringVar(&options.deniedPrefixes, "denied-prefixes", "", "comma-separated never-auto-approve path prefixes")
+	if includeNow {
+		flags.StringVar(&options.nowValue, "now", "", "evaluation time in RFC3339")
+	}
+	if err := flags.Parse(args); err != nil {
+		return options, err
+	}
+	return options, nil
+}
+
+func buildFromOptions(options buildOptions) (contracts.ChangePassport, time.Time, error) {
+	var tests passportbuilder.TestReport
+	if strings.TrimSpace(options.testsPath) != "" {
+		if err := decodePath(options.testsPath, nil, &tests); err != nil {
+			return contracts.ChangePassport{}, time.Time{}, fmt.Errorf("read tests: %w", err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	passport, err := (passportbuilder.Builder{}).Build(ctx, passportbuilder.Request{
+		RepositoryPath:     options.repositoryPath,
+		RepositoryID:       options.repositoryID,
+		Commit:             options.commit,
+		CheckpointID:       options.checkpointID,
+		Intent:             options.intent,
+		RepositoryOptedIn:  options.repositoryOptedIn,
+		RepositoryIsPublic: options.repositoryIsPublic,
+		AIAuthored:         options.aiAuthored,
+		Tests:              tests,
+		SensitivePrefixes:  splitCSVOrNil(options.sensitivePrefixes),
+		DeniedPrefixes:     splitCSVOrNil(options.deniedPrefixes),
+	})
+	if err != nil {
+		return contracts.ChangePassport{}, time.Time{}, err
+	}
+	now := time.Now().UTC()
+	if strings.TrimSpace(options.nowValue) != "" {
+		now, err = time.Parse(time.RFC3339, options.nowValue)
+		if err != nil {
+			return contracts.ChangePassport{}, time.Time{}, fmt.Errorf("parse --now: %w", err)
+		}
+	}
+	return passport, now, nil
+}
+
+func splitCSVOrNil(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := []string{}
+	for _, part := range strings.Split(value, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }
 
 func export(args []string, stdout io.Writer) error {
