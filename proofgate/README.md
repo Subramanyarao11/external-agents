@@ -65,6 +65,48 @@ default threshold fails only `APPROVAL_REQUIRED`; choose `warn` for a stricter
 gate or `never` for observation mode. The full JSON is still produced before a
 blocking exit so an `if: always()` artifact step can preserve the evidence.
 
+## AI-authored pull requests in GitHub Actions
+
+ProofGate includes two dispatchable authoring workflows:
+
+- `examples/github/ai-author-codex.yml` uses the official OpenAI Codex Action,
+  keeps its rollout under `RUNNER_TEMP`, and needs `OPENAI_API_KEY`.
+- `examples/github/ai-author-cursor.yml` uses Cursor Agent CLI `stream-json`,
+  redirects the stream under `RUNNER_TEMP`, and needs `CURSOR_API_KEY`.
+
+Copy them to `.github/workflows/ai-author-codex.yml` and
+`.github/workflows/ai-author-cursor.yml`. Copy the evaluator template to the
+exact path `.github/workflows/proofgate.yml`, because both authoring workflows
+explicitly dispatch that workflow after opening their pull request. This avoids
+GitHub's recursion protection, under which a pull request created with the
+repository `GITHUB_TOKEN` does not itself trigger another workflow.
+
+Both providers use the checked-in `.github/actions/entire-proofgate` capture
+boundary. The capture action normalizes Claude JSON, Codex execution/rollout
+JSONL, and Cursor stream JSONL into one Entire session format. The later commit
+receives an `Entire-Checkpoint` trailer, the checkpoint ref is pushed, and the
+normal ProofGate workflow evaluates the branch. Raw provider transcripts remain
+runner-local and are never uploaded by these templates.
+
+A regular GitHub Free account is sufficient. Use a public repository for free
+standard hosted-runner usage, or stay within the private-repository Actions
+allowance. No GitHub Enterprise feature or larger runner is required.
+
+Before the first run, enable Actions in the demo repository and allow workflow
+tokens to write repository contents and pull requests. Add `OPENAI_API_KEY`
+for the Codex workflow and/or `CURSOR_API_KEY` for the Cursor workflow as
+repository Actions secrets. These are provider credentials; a GitHub or Codex
+app subscription does not replace them. Use synthetic code in a public demo
+repository, because the resulting Entire checkpoint is intentionally committed
+as provenance even though the raw runner transcript is not uploaded.
+
+For a small, tightly scoped edit, budget roughly 5–10 minutes from workflow
+dispatch to a ProofGate result. This is a demo target, not a guarantee: hosted
+runner queueing and model latency vary, and a cold Databricks SQL warehouse can
+add several minutes. Keep `databricks-mode: off` while proving the core loop,
+then warm the warehouse and switch to `roundtrip` for the Databricks judging
+demo. Both authoring templates have a 20-minute safety timeout.
+
 `databricks-mode: roundtrip` first loads the previous 30 days of allowlisted
 fleet evidence, then evaluates the deterministic policy, and finally exports
 the current result. `history` and `export` run one half of that loop; `off`

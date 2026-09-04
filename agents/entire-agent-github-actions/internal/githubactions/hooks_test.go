@@ -31,6 +31,31 @@ func TestManagedActionLifecycle(t *testing.T) {
 	}
 }
 
+func TestManagedActionIsProviderNeutral(t *testing.T) {
+	action := generatedAction(false)
+	for _, expected := range []string{
+		"Capture a Claude, Codex, or Cursor execution",
+		"provider:",
+		"--provider \"$ENTIRE_PROVIDER\"",
+		"--model \"$ENTIRE_MODEL\"",
+	} {
+		if !strings.Contains(action, expected) {
+			t.Errorf("generated action does not contain %q", expected)
+		}
+	}
+}
+
+func TestCheckedInActionMatchesInstaller(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", actionRelativePath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != generatedAction(false) {
+		t.Fatal("checked-in capture action differs from the external-agent installer output")
+	}
+}
+
 func TestInstallDoesNotOverwriteForeignAction(t *testing.T) {
 	repo := t.TempDir()
 	t.Setenv("ENTIRE_REPO_ROOT", repo)

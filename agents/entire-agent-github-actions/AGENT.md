@@ -3,10 +3,10 @@
 ## Verdict: COMPATIBLE WITH EXPLICIT WORKFLOW INSTRUMENTATION
 
 GitHub Actions is a CI environment rather than a conversational coding-agent
-binary. It nevertheless exposes stable run identity and event context, while
-Anthropic's official `claude-code-action@v1` exposes both the Claude session ID
-and the full Agent SDK execution file. A local composite action can place
-Entire lifecycle events around that run without modifying Entire CLI itself.
+binary. It nevertheless exposes stable run identity and event context. A local
+composite action places Entire lifecycle events around Claude, Codex, or Cursor
+without modifying Entire CLI itself. Provider-native JSON/JSONL is normalized
+to one transcript contract before Entire checkpoints it.
 
 The implementation targets the open Entire CLI use case described in issue
 `entireio/cli#348`: retain the triggering issue/comment, agent trace, file
@@ -19,6 +19,10 @@ Research sources:
 - https://github.com/anthropics/claude-code-action/blob/main/action.yml
 - https://github.com/anthropics/claude-code-action/blob/main/base-action/src/run-claude-sdk.ts
 - https://github.com/anthropics/claude-code-action/blob/main/base-action/src/execution-file.ts
+- https://github.com/openai/codex-action
+- https://github.com/openai/codex/blob/main/codex-rs/exec/src/exec_events.rs
+- https://docs.cursor.com/en/cli/github-actions
+- https://docs.cursor.com/en/cli/reference/output-format
 
 ## Static Checks
 
@@ -28,23 +32,29 @@ Research sources:
 | Help available | N/A | GitHub Actions is configured by workflow YAML, not a local CLI |
 | Version info | PASS | Workflow records action ref, runner OS/arch and adapter version |
 | Hook keywords | PARTIAL | Step boundaries provide lifecycle points; there is no native global hook registry |
-| Session keywords | PASS | Claude Code Action outputs `session_id` and `execution_file` |
+| Session keywords | PASS | Claude exposes `execution_file`; Codex persists rollout JSONL; Cursor emits `session_id` in stream JSONL |
 | Config directory | PASS | `.github/workflows/` and generated `.github/actions/entire-proofgate/` |
 | Documentation | PASS | Official GitHub and Anthropic sources listed above |
 
 Local verification on 4 September 2026 passed the shared external-agent
-compliance suite, semantic Claude execution fixtures, unit tests, and an actual
+compliance suite, semantic Claude/Codex/Cursor execution fixtures, unit tests, and an actual
 Entire CLI lifecycle: TurnStart produced a shadow checkpoint, a user commit
 received an `Entire-Checkpoint` trailer, and `entire checkpoint explain`
 reported the GitHub Actions agent, model, touched file, prompt and tokens. A
 hosted runner execution remains unverified until a disposable repository and
-Claude credential are available.
+an approved OpenAI or Cursor API credential are available.
+
+The provider extension was lifecycle-tested locally against Entire CLI 0.10.5.
+Codex fixture capture produced checkpoint `01M1PRTSFRGBFY5BQP709XCVQ8`; Cursor
+fixture capture produced `01M1PRVCQY1JXQQNST7NFFQ15Z`. These prove lifecycle
+and commit attribution, not a hosted model invocation.
 
 ## Binary
 
 - External adapter binary: `entire-agent-github-actions`
 - Native runtime: GitHub-hosted or self-hosted Actions runner
-- Supported AI action initially: `anthropics/claude-code-action@v1`
+- Supported AI executions: `openai/codex-action@v1`, Cursor Agent CLI
+  `stream-json`, and `anthropics/claude-code-action@v1`
 - GitHub runtime identity: `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`,
   `GITHUB_JOB`, `GITHUB_WORKFLOW_REF`, `GITHUB_SHA`
 - Installation: build the Go binary, place it on `PATH`, enable
@@ -53,17 +63,18 @@ Claude credential are available.
 
 ## Hook Mechanism
 
-The adapter installs a repository-local composite action source under:
+The adapter installs a repository-local, provider-neutral composite action under:
 
 ```text
 .github/actions/entire-proofgate/action.yml
 ```
 
 The composite action is explicitly referenced twice: `mode: begin` immediately
-before Claude and `mode: finish` in an `always()` step immediately after it.
-The finish call consumes `steps.<claude-id>.outputs.execution_file`. Both calls
+before the selected agent and `mode: finish` in an `always()` step immediately
+after it. The finish call consumes the provider's private execution file. Both calls
 use the same deterministic `gha-<run-id>-<attempt>-<job>` identity, so the
-pre-agent snapshot and post-agent evidence belong to one Entire session.
+pre-agent snapshot and post-agent evidence belong to one Entire session. The
+`provider` input accepts `claude`, `codex`, `cursor`, or `auto`.
 
 Hook input is JSON on stdin. The workflow never prints the raw transcript.
 
@@ -84,7 +95,7 @@ SDK transcript but are not promoted to Entire lifecycle events in v1.
 - Local/test fallback:
   `${TMPDIR}/entire-github-actions/<repo-hash>/sessions/`
 - Entire session ID: deterministic `gha-<run-id>-<attempt>-<job>`, available
-  before Claude starts. The native Claude `session_id` remains transcript
+  before the provider starts. The native provider session ID remains transcript
   evidence and can be included in the Change Passport.
 - Session file:
   `<session-dir>/<sanitized-session-id>.json`
@@ -97,10 +108,19 @@ ends. Resuming is workflow-specific rather than automatic.
 
 ## Transcript
 
-Anthropic's action writes `claude-execution-output.json` under `RUNNER_TEMP`
-and exposes its path as `execution_file`. The file is a JSON array of Agent SDK
-messages. Official source confirms that messages are collected before log
-sanitization and written to the file even when `show_full_output` is false.
+Provider transcript sources:
+
+- Claude writes an Agent SDK JSON array and exposes its path as
+  `execution_file`.
+- Codex Action writes a private rollout under an explicitly configured
+  `CODEX_HOME/sessions/**/rollout-*.jsonl`. The adapter retains messages, file
+  changes, the final cumulative token record, model and final response.
+- Cursor Agent CLI emits NDJSON with `--output-format stream-json`. The workflow
+  redirects stdout to `RUNNER_TEMP`, and the adapter maps `tool_call` variants
+  such as `writeToolCall` and `editToolCall` to normalized tool uses.
+
+The Codex and Cursor workflow examples do not upload or echo raw transcripts.
+Only allowlisted Change Passport fields may leave the checkpoint boundary.
 
 Documented message shapes:
 
@@ -111,22 +131,22 @@ Documented message shapes:
 {"type":"result","subtype":"success","is_error":false,"result":"Implemented the fix","num_turns":2,"total_cost_usd":0.01}
 ```
 
-- User prompt: user messages and the permitted trigger excerpt
-- Modified files: `tool_use` blocks for Edit/Write/NotebookEdit plus final
-  `git diff --name-status` reconciliation
+- User prompt: provider user messages or the explicit redacted `prompt` input
+- Modified files: Claude Edit/Write blocks, Codex `file_change` items, or Cursor
+  write/edit tool calls
 - Summary: successful result message, falling back to last assistant text
 - Tokens: aggregate usage/result fields when present; cost is metadata only
 - Model: system init model, falling back to model usage keys
 
 ## Data Storage Verification
 
-- Execution file contains actual assistant content: **UNVERIFIED ON A LIVE
-  RUNNER**; confirmed by current official action source and fixtures
+- Execution files contain actual assistant content: **FIXTURE VERIFIED / LIVE
+  RUNNER UNVERIFIED**; confirmed by current official sources and semantic fixtures
 - Tool calls: current Agent SDK message schema includes them in assistant
   content blocks
 - Secondary storage: no persistent storage is assumed; runner temp is copied
   into the Entire checkpoint before teardown
-- Cross-reference: Claude `session_id` plus GitHub run ID/attempt/job
+- Cross-reference: provider session ID plus GitHub run ID/attempt/job
 - Hook data flow: **UNVERIFIED ON A LIVE RUNNER**; the generated composite
   action will pass explicit JSON via stdin
 - Secret safety: raw execution output is never written to Actions logs or a
@@ -138,20 +158,20 @@ Documented message shapes:
 |---|---|---|---|
 | `info` | Static metadata | Declares CI hooks and transcript analysis | Required |
 | `detect` | Actions runner | Check `GITHUB_ACTIONS=true` and event/workspace variables | Required |
-| `get-session-id` | Claude/GitHub identity | Extract from normalized hook | Required |
+| `get-session-id` | Provider/GitHub identity | Extract from normalized hook | Required |
 | `get-session-dir` | Runner temp | Repository-scoped fallback outside working tree | Required |
 | `resolve-session-file` | Captured SDK log | Sanitized session ID JSON path | Required |
 | `read-session` | Execution file + GitHub event | Preserve native data and file lists | Required |
 | `write-session` | Runner session file | Atomic owner-only write | Required |
 | `read-transcript` | Execution file | Raw bytes; never log | Required |
 | `chunk-transcript` / `reassemble-transcript` | None | Generic byte chunks | Required |
-| `compact-transcript` | SDK message array | Convert to Entire Transcript Format | Supported |
+| `compact-transcript` | Normalized provider messages | Convert to Entire Transcript Format | Supported |
 | `format-resume-command` | Workflow dispatch/rerun | Emit safe `gh run rerun` fallback | Partial |
 | `parse-hook` | Composite action payload | Map the four lifecycle events | Supported |
 | `install-hooks` | Local composite action | Create managed action file; no workflow is silently modified | Supported |
 | `uninstall-hooks` | Managed action file | Remove only exact adapter-owned file | Supported |
 | `are-hooks-installed` | Managed marker/content | Reject foreign files | Supported |
-| `get-transcript-position` | SDK message count | Stable message index | Supported |
+| `get-transcript-position` | Normalized message count | Stable message index | Supported |
 | `extract-modified-files` | Tool uses + git reconciliation | Allowlisted file-changing tools | Supported |
 | `extract-prompts` | User messages | Redaction happens downstream | Supported |
 | `extract-summary` | Result/assistant text | Prefer canonical result | Supported |
@@ -163,7 +183,7 @@ Documented message shapes:
 |---|---|---|
 | `hooks` | true | Explicit, inspectable workflow lifecycle integration |
 | `transcript_analyzer` | true | Official action exposes full SDK execution file |
-| `transcript_preparer` | false | Execution file already exists after Claude step |
+| `transcript_preparer` | false | Execution file already exists after the provider step |
 | `compact_transcript` | true | Preserve inspectable prompts, replies and tool calls |
 | `token_calculator` | true | Result/usage fields are available when emitted |
 | `text_generator` | false | The workflow action, not the adapter, owns model invocation |
@@ -175,17 +195,17 @@ Documented message shapes:
 
 - A workflow must explicitly use the generated composite action; GitHub has no
   safe repository-wide lifecycle hook that the adapter can install invisibly.
-- The first implementation targets Claude Code Action output. A provider
-  interface should permit Codex Action and other agents later.
-- `execution_file` is an output path on the same job runner and does not cross
+- Claude, Codex and Cursor formats are implemented. New providers still require
+  a semantic fixture and explicit normalizer.
+- `execution_file` is a private path on the same job runner and does not cross
   jobs unless uploaded as an artifact. ProofGate keeps capture in the same job.
 - The triggering comment and PR body are untrusted input. They are stored as
   evidence, never executed as workflow instructions.
 - Full execution files can contain secrets or source fragments. Databricks
   receives only allowlisted, redacted Change Passport fields.
 - `gh run rerun` reproduces the workflow but does not automatically resume the
-  Claude session. True resume requires a workflow-dispatch input configured by
-  the repository owner.
+  provider session. True resume requires a workflow-dispatch input configured
+  by the repository owner.
 
 ## Captured Payloads
 
@@ -193,7 +213,8 @@ Documented message shapes:
   `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`
 - Capture directory:
   `agents/entire-agent-github-actions/.probe-github-actions-*/captures/`
-- Verification status: **LOCAL LIFECYCLE VERIFIED / LIVE-RUNNER UNVERIFIED**
+- Verification status: **LOCAL LIFECYCLE + THREE PROVIDER FORMATS VERIFIED /
+  LIVE-RUNNER UNVERIFIED**
 - The script accepts an actual action `execution_file` and `GITHUB_EVENT_PATH`,
   or can validate a source-derived sample without network or secrets.
 
@@ -201,9 +222,9 @@ Documented message shapes:
 
 - Entire CLI: `entire` on `PATH` or `E2E_ENTIRE_BIN`
 - GitHub Actions: a disposable public/synthetic repository with Actions enabled
-- Claude action: `anthropics/claude-code-action@v1`
-- Authentication: repository secret or approved OIDC configuration owned by
-  the tester; never a fixture
+- Agent runtime: OpenAI Codex Action, Cursor Agent CLI, or Claude Code Action
+- Authentication: `OPENAI_API_KEY`, `CURSOR_API_KEY`, or an approved provider
+  credential owned by the tester; never a fixture
 - Non-interactive mode: GitHub workflow `prompt:` input
 - Interactive mode: not applicable
 - Local contract mode: source-derived execution and event fixtures
