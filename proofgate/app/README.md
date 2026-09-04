@@ -14,6 +14,8 @@ the planned Lakebase deployment:
 - a unique `idempotency_key` makes network retries safe;
 - a successful live review is idempotently merged into Databricks so the next
   CI run can enforce `HUMAN_APPROVED` or `HUMAN_REJECTED`;
+- after a governed approval is synced, an optional GitHub dispatcher re-runs
+  the evaluator against the exact blocked commit SHA;
 - the review queue and metrics are derived from persisted state.
 
 ## Run locally
@@ -46,6 +48,11 @@ receipts to `policy_decision_events`. The write uses bound parameters and the
 review idempotency key. If the warehouse is temporarily unavailable, the API
 returns `decision_sync.status=PENDING_RETRY` rather than claiming CI was
 released; retrying the same decision request is safe.
+
+The bundle injects `PROOFGATE_GITHUB_REPOSITORY`, workflow name/ref, and a
+Databricks secret-backed `PROOFGATE_GITHUB_TOKEN`. Rejections are never
+dispatched. Approval dispatch failure is reported as `PENDING_RETRY`; it never
+rewrites a successfully persisted review or falsely claims that CI was released.
 
 ## Verify
 

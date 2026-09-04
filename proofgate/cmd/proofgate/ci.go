@@ -184,6 +184,7 @@ func parseCIGateOptions(args []string) (ciGateOptions, error) {
 	flags.BoolVar(&options.build.aiAuthored, "ai-authored", true, "mark the change as AI-authored")
 	flags.StringVar(&options.build.sensitivePrefixes, "sensitive-prefixes", "", "comma-separated sensitive path prefixes")
 	flags.StringVar(&options.build.deniedPrefixes, "denied-prefixes", "", "comma-separated never-auto-approve path prefixes")
+	flags.StringVar(&options.build.graphMode, "graph-mode", "off", "Entire Graph impact analysis: off, auto, or required")
 	flags.StringVar(&options.build.nowValue, "now", "", "evaluation time in RFC3339")
 	flags.StringVar(&options.resultPath, "result", "proofgate-result.json", "machine-readable result path")
 	flags.StringVar(&options.githubOutput, "github-output", os.Getenv("GITHUB_OUTPUT"), "GitHub Actions output file")
@@ -308,8 +309,11 @@ func writeGitHubOutput(path, resultPath string, passport contracts.ChangePasspor
 		"risk_score":         strconv.Itoa(result.Score),
 		"databricks_status":  databricks.Status,
 		"enforcement_status": enforcement,
+		"impact_source":      passport.Impact.AnalysisSource,
+		"impact_complete":    strconv.FormatBool(passport.Impact.AnalysisComplete),
+		"max_dependents":     strconv.Itoa(passport.Impact.MaxDependentCount),
 	}
-	keys := []string{"decision", "enforcement_status", "risk_score", "hard_stops", "checkpoint_id", "result_path", "databricks_status"}
+	keys := []string{"decision", "enforcement_status", "risk_score", "hard_stops", "checkpoint_id", "result_path", "databricks_status", "impact_source", "impact_complete", "max_dependents"}
 	var output strings.Builder
 	for _, key := range keys {
 		value := values[key]
@@ -332,6 +336,8 @@ func appendGitHubSummary(path string, passport contracts.ChangePassport, result 
 	_, _ = fmt.Fprintf(&summary, "| Source adapter | %s |\n", markdownCell(passport.Authoring.SourceAdapter, "unknown"))
 	_, _ = fmt.Fprintf(&summary, "| Provenance complete | %t |\n", passport.Authoring.ProvenanceComplete)
 	_, _ = fmt.Fprintf(&summary, "| Change size | %d files / %d changed lines |\n", len(passport.Impact.ChangedFiles), passport.Impact.ChangedLineCount)
+	_, _ = fmt.Fprintf(&summary, "| Impact analysis | %s (complete: %t) |\n", markdownCell(passport.Impact.AnalysisSource, "unknown"), passport.Impact.AnalysisComplete)
+	_, _ = fmt.Fprintf(&summary, "| Maximum dependents | %d |\n", passport.Impact.MaxDependentCount)
 	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed |\n", passport.Tests.Total, passport.Tests.Failed)
 	_, _ = fmt.Fprintf(&summary, "| Databricks | %s |\n", markdownText(databricks.Status))
 	if passport.History.Available {

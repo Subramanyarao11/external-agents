@@ -17,8 +17,8 @@ go run ./cmd/proofgate evaluate \
 ```
 
 Build a passport directly from a real git commit, its `Entire-Checkpoint`
-trailer, Entire's checkpoint explanation, the git diff, and structured CI test
-evidence:
+trailer, Entire's checkpoint explanation, Entire Graph's local code graph, the
+git diff, and structured CI test evidence:
 
 ```bash
 go run ./cmd/proofgate junit-report \
@@ -30,8 +30,15 @@ go run ./cmd/proofgate gate \
   --repo /path/to/target-repository \
   --repo-id mobile-checkout \
   --repo-opted-in \
+  --graph-mode required \
   --tests examples/test-report.json
 ```
+
+`--graph-mode required` runs the pinned Entire Graph v0.4.0 contract and refuses
+to pretend path heuristics are semantic impact analysis. `auto` falls back to
+explicitly labelled `git-path-heuristic` evidence when Graph is unavailable;
+`off` is the portable local default. Graph entity names and dependent counts
+raise review risk without sending source code or prompts to another model.
 
 `junit-report` accepts repeated `--junit name=path` inputs and repeated
 `--optional-junit name=path` inputs. It records only suite names, counts,
@@ -60,7 +67,8 @@ outputs, and writes the full structured result for artifact retention:
     databricks-mode: roundtrip
 ```
 
-`proofgate/examples/github/proofgate.yml` is a complete workflow template. The
+`.github/workflows/proofgate.yml` is the active workflow and
+`proofgate/examples/github/proofgate.yml` is its portable template. The
 default threshold fails only `APPROVAL_REQUIRED`; choose `warn` for a stricter
 gate or `never` for observation mode. The full JSON is still produced before a
 blocking exit so an `if: always()` artifact step can preserve the evidence.
@@ -120,6 +128,13 @@ passport event ID: approval produces `HUMAN_APPROVED` and releases the check;
 rejection produces `HUMAN_REJECTED` and blocks even in observation mode. The
 automated verdict remains unchanged in the artifact for auditability.
 
+When its GitHub App secret is configured, the Control Room now dispatches that
+re-run automatically after—and only after—the governed receipt reaches
+Databricks. The evaluator accepts an exact `candidate_ref` SHA, so it evaluates
+the blocked commit rather than whichever commit happens to be on the default
+branch. The example workflow also uses a per-commit concurrency key to collapse
+duplicate network retries.
+
 The Databricks modes read these GitHub secrets/environment variables:
 
 ```text
@@ -139,3 +154,9 @@ The engine accepts structured evidence IDs, counts, categories and safe intent
 summaries. It does not require raw prompts, chain-of-thought, source code, URLs
 with credentials, or secret values. The Databricks exporter will enforce the
 same allowlist before network transmission.
+
+Run `./scripts/verify-offline.sh` before adding any cloud credentials. It tests
+the Go engine, Control Room, Graph contract, GitHub workflows, dashboard JSON,
+and both bundle schemas. Authentication-only validation remains clearly marked
+as pending instead of being reported as a local failure. `READINESS.md` is the
+short handoff checklist for the event workspace and final judging loop.

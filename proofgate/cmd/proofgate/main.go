@@ -62,6 +62,7 @@ type buildOptions struct {
 	aiAuthored         bool
 	sensitivePrefixes  string
 	deniedPrefixes     string
+	graphMode          string
 	nowValue           string
 }
 
@@ -108,6 +109,7 @@ func parseBuildOptions(name string, args []string, includeNow bool) (buildOption
 	flags.BoolVar(&options.aiAuthored, "ai-authored", true, "mark the change as AI-authored")
 	flags.StringVar(&options.sensitivePrefixes, "sensitive-prefixes", "", "comma-separated sensitive path prefixes")
 	flags.StringVar(&options.deniedPrefixes, "denied-prefixes", "", "comma-separated never-auto-approve path prefixes")
+	flags.StringVar(&options.graphMode, "graph-mode", "off", "Entire Graph impact analysis: off, auto, or required")
 	if includeNow {
 		flags.StringVar(&options.nowValue, "now", "", "evaluation time in RFC3339")
 	}
@@ -138,6 +140,7 @@ func buildFromOptions(options buildOptions) (contracts.ChangePassport, time.Time
 		Tests:              tests,
 		SensitivePrefixes:  splitCSVOrNil(options.sensitivePrefixes),
 		DeniedPrefixes:     splitCSVOrNil(options.deniedPrefixes),
+		GraphMode:          options.graphMode,
 	})
 	if err != nil {
 		return contracts.ChangePassport{}, time.Time{}, err

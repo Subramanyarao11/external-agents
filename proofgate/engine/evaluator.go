@@ -112,6 +112,14 @@ func Evaluate(passport contracts.ChangePassport, policy Policy, now time.Time) (
 	if passport.Impact.DependencyDepth > policy.MaximumSafeDepth {
 		addReason("DEEP_DEPENDENCY_REACH", policy.DeepDependencyRisk, "The dependency impact travels deeper than the normal review boundary.", passport.Impact.DependencyDepth, policy.MaximumSafeDepth, baseEvidence)
 	}
+	if passport.Impact.MaxDependentCount > policy.MaximumSafeDependents {
+		addReason("HIGH_DEPENDENT_COUNT", policy.HighDependentRisk, "Entire Graph found a changed entity with an unusually broad dependent surface.", passport.Impact.MaxDependentCount, policy.MaximumSafeDependents, baseEvidence)
+	}
+	if passport.Impact.AnalysisSource == "git-path-heuristic" && len(passport.Impact.ChangedFiles) > 0 {
+		result.Uncertainties = append(result.Uncertainties, "Entire Graph evidence is unavailable; blast radius uses the labelled git-path fallback.")
+	} else if strings.HasPrefix(passport.Impact.AnalysisSource, "entire-graph-") && !passport.Impact.AnalysisComplete {
+		result.Uncertainties = append(result.Uncertainties, "Entire Graph returned partial coverage; conservative file-level evidence represents uncovered files.")
+	}
 
 	if passport.Safety.SecretDetected {
 		addHardStop("SECRET_DETECTED", "Potential secret material must be removed before evidence can leave the runner.")

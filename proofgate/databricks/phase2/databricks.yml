@@ -1,5 +1,7 @@
 bundle:
   name: entire-proofgate-phase2
+  engine: direct
+  databricks_cli_version: ">= 1.15.0"
 
 variables:
   catalog:
@@ -25,8 +27,26 @@ variables:
   explanation_model_endpoint:
     description: Pay-per-token endpoint used only for non-authoritative explanations
     default: databricks-gpt-5-6-luna
+  refresh_pause_status:
+    description: Keep the operational refresh paused in dev; demo enables it
+    default: PAUSED
+  github_repository:
+    description: GitHub owner/repository containing the ProofGate evaluator workflow
+  github_workflow:
+    description: Evaluator workflow filename or numeric workflow ID
+    default: proofgate.yml
+  github_workflow_ref:
+    description: Default branch/ref containing the evaluator workflow definition
+    default: main
+  github_token_secret_key:
+    description: Key inside the bundle-managed secret scope containing a fine-grained GitHub token
+    default: github-token
 
 resources:
+  secret_scopes:
+    github_dispatch:
+      name: proofgate-github-${bundle.target}
+
   postgres_projects:
     proofgate:
       project_id: ${var.project_id}
@@ -83,6 +103,20 @@ resources:
         - file:
             path: ./pipeline/proofgate_features.py
 
+  jobs:
+    refresh_operational_features:
+      name: proofgate-operational-refresh-${bundle.target}
+      max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 2/5 * * * ?"
+        timezone_id: UTC
+        pause_status: ${var.refresh_pause_status}
+      tasks:
+        - task_key: refresh_live_features
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.live_features.id}
+            full_refresh: false
+
   vector_search_endpoints:
     similar_endpoint:
       name: proofgate-similar-changes-${bundle.target}
@@ -107,6 +141,86 @@ resources:
           - decision
           - risk_score
           - source_event_id
+
+  dashboards:
+    fleet_dashboard:
+      display_name: ProofGate Fleet Control
+      file_path: ./dashboard/proofgate-fleet.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.catalog}
+      dataset_schema: ${var.schema}
+      embed_credentials: false
+
+  genie_spaces:
+    ask_proofgate:
+      title: Ask ProofGate
+      description: Governed natural-language analysis of fleet risk and evidence coverage
+      warehouse_id: ${var.warehouse_id}
+      serialized_space:
+        version: 2
+        config:
+          sample_questions:
+            - id: "10000000000000000000000000000001"
+              question:
+                - Which repositories currently need the most human review?
+            - id: "10000000000000000000000000000002"
+              question:
+                - How complete is Entire Graph impact evidence over the last seven days?
+            - id: "10000000000000000000000000000003"
+              question:
+                - What are the most common reasons changes are blocked?
+        data_sources:
+          tables:
+            - identifier: ${var.catalog}.${var.schema}.fleet_gate_metrics
+            - identifier: ${var.catalog}.${var.schema}.gold_change_risk_features
+        instructions:
+          example_question_sqls:
+            - id: "20000000000000000000000000000001"
+              question:
+                - Which repositories currently need the most human review?
+              sql:
+                - >-
+                  SELECT repo_id, SUM(approval_required_count) AS approvals_required,
+                  SUM(change_count) AS changes
+                  FROM ${var.catalog}.${var.schema}.fleet_gate_metrics
+                  WHERE metric_day >= date_sub(current_date(), 7)
+                  GROUP BY repo_id
+                  ORDER BY approvals_required DESC, changes DESC
+            - id: "20000000000000000000000000000002"
+              question:
+                - How complete is Entire Graph impact evidence over the last seven days?
+              sql:
+                - >-
+                  SELECT repo_id,
+                  ROUND(100.0 * SUM(graph_complete_count) / NULLIF(SUM(change_count), 0), 1)
+                  AS graph_complete_percent
+                  FROM ${var.catalog}.${var.schema}.fleet_gate_metrics
+                  WHERE metric_day >= date_sub(current_date(), 7)
+                  GROUP BY repo_id
+                  ORDER BY graph_complete_percent ASC
+            - id: "20000000000000000000000000000003"
+              question:
+                - What are the most common reasons changes are blocked?
+              sql:
+                - >-
+                  SELECT reason_code, COUNT(*) AS occurrence_count
+                  FROM ${var.catalog}.${var.schema}.gold_change_risk_features
+                  LATERAL VIEW EXPLODE(reason_codes) AS reason_code
+                  WHERE decision = 'APPROVAL_REQUIRED'
+                  GROUP BY reason_code
+                  ORDER BY occurrence_count DESC
+          text_instructions:
+            - id: "30000000000000000000000000000001"
+              content:
+                - >-
+                  ProofGate is an engineering governance product. Use fleet_gate_metrics for
+                  aggregated fleet questions and gold_change_risk_features for change-level
+                  investigations. Treat PASS, WARN, and APPROVAL_REQUIRED as deterministic policy
+                  outcomes; never describe Genie as changing or overriding a verdict. Entire Graph
+                  evidence is complete only when impact_analysis_complete is true. When the user
+                  says recent, use the last seven days unless they provide another window. Do not
+                  infer raw prompts, source code, secrets, or developer intent because those fields
+                  are deliberately excluded from the governed data contract.
 
   apps:
     control_app:
@@ -134,6 +248,16 @@ resources:
             value: ${resources.vector_search_endpoints.similar_endpoint.name}
           - name: PROOFGATE_EXPLANATION_MODEL
             value_from: proofgate-explanation-model
+          - name: PROOFGATE_GITHUB_REPOSITORY
+            value: ${var.github_repository}
+          - name: PROOFGATE_GITHUB_WORKFLOW
+            value: ${var.github_workflow}
+          - name: PROOFGATE_GITHUB_WORKFLOW_REF
+            value: ${var.github_workflow_ref}
+          - name: PROOFGATE_GITHUB_TOKEN
+            value_from: proofgate-github-token
+          - name: PROOFGATE_GENIE_SPACE_ID
+            value_from: proofgate-genie
       resources:
         - name: proofgate-postgres
           postgres:
@@ -163,6 +287,16 @@ resources:
           serving_endpoint:
             name: ${var.explanation_model_endpoint}
             permission: CAN_QUERY
+        - name: proofgate-github-token
+          secret:
+            scope: ${resources.secret_scopes.github_dispatch.name}
+            key: ${var.github_token_secret_key}
+            permission: READ
+        - name: proofgate-genie
+          genie_space:
+            name: ${resources.genie_spaces.ask_proofgate.title}
+            space_id: ${resources.genie_spaces.ask_proofgate.id}
+            permission: CAN_RUN
 
 targets:
   dev:
@@ -173,5 +307,7 @@ targets:
 
   demo:
     mode: production
+    variables:
+      refresh_pause_status: UNPAUSED
     workspace:
       root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

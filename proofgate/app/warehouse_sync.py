@@ -41,6 +41,9 @@ class WarehouseSynchronizer:
               decision AS automated_verdict,
               risk_score,
               changed_file_count,
+              coalesce(impact_analysis_source, 'git-path-heuristic') AS impact_analysis_source,
+              coalesce(impact_analysis_complete, false) AS impact_analysis_complete,
+              coalesce(max_dependent_count, 0) AS max_dependent_count,
               test_total AS tests_total,
               test_failed AS tests_failed,
               provenance_complete,
@@ -71,6 +74,9 @@ class WarehouseSynchronizer:
         risk_score = int(row["risk_score"])
         tests_failed = int(row["tests_failed"])
         provenance_complete = str(row["provenance_complete"]).lower() == "true"
+        impact_analysis_complete = (
+            str(row.get("impact_analysis_complete", "false")).lower() == "true"
+        )
         reason_codes = json.loads(row["reason_codes_json"] or "[]")
         hard_stop_codes = json.loads(row["hard_stop_codes_json"] or "[]")
         if hard_stop_codes:
@@ -87,6 +93,11 @@ class WarehouseSynchronizer:
             "automated_verdict": verdict,
             "risk_score": risk_score,
             "changed_file_count": int(row["changed_file_count"]),
+            "impact_analysis_source": row.get(
+                "impact_analysis_source", "git-path-heuristic"
+            ),
+            "impact_analysis_complete": impact_analysis_complete,
+            "max_dependent_count": int(row.get("max_dependent_count", 0)),
             "tests_total": int(row["tests_total"]),
             "tests_failed": tests_failed,
             "provenance_complete": provenance_complete,
@@ -113,4 +124,3 @@ def create_synchronizer() -> WarehouseSynchronizer | None:
         catalog=os.environ.get("PROOFGATE_CATALOG", "main"),
         schema=os.environ.get("PROOFGATE_SCHEMA", "proofgate_dev"),
     )
-
