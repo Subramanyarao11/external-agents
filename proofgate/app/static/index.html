@@ -38,8 +38,8 @@
         <div class="rail-footer">
           <span class="status-dot"></span>
           <div>
-            <strong>Local demo</strong>
-            <small>Seeded, synthetic evidence</small>
+            <strong id="data-mode-title">Local demo</strong>
+            <small id="data-mode-copy">Seeded, synthetic evidence</small>
           </div>
         </div>
       </aside>
@@ -51,8 +51,9 @@
             <h1>Review queue</h1>
           </div>
           <div class="topbar-actions">
-            <span class="demo-chip"><span></span> DEMO DATA</span>
+            <span id="data-mode-chip" class="demo-chip"><span></span> DEMO DATA</span>
             <button id="reset-button" class="button button-subtle" type="button">Reset demo</button>
+            <button id="sync-button" class="button button-subtle" type="button" hidden>Sync evidence</button>
           </div>
         </header>
 
@@ -138,4 +139,3 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </body>
 </html>
-

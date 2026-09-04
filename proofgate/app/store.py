@@ -201,6 +201,48 @@ class SQLiteStore:
             connection.execute("COMMIT")
         return {"inserted": inserted, "total": len(SEED_GATES)}
 
+    def upsert_gates(self, gates: list[dict[str, Any]]) -> dict[str, int]:
+        """Refresh machine evidence without mutating human review columns."""
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for gate in gates:
+                connection.execute(
+                    """
+                    INSERT INTO gates (
+                        event_id, repo_id, checkpoint_id, commit_sha,
+                        automated_verdict, risk_score, changed_file_count,
+                        tests_total, tests_failed, provenance_complete, summary,
+                        reason_codes_json, hard_stop_codes_json, review_status,
+                        version, occurred_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    ON CONFLICT(event_id) DO UPDATE SET
+                        repo_id = excluded.repo_id,
+                        checkpoint_id = excluded.checkpoint_id,
+                        commit_sha = excluded.commit_sha,
+                        automated_verdict = excluded.automated_verdict,
+                        risk_score = excluded.risk_score,
+                        changed_file_count = excluded.changed_file_count,
+                        tests_total = excluded.tests_total,
+                        tests_failed = excluded.tests_failed,
+                        provenance_complete = excluded.provenance_complete,
+                        summary = excluded.summary,
+                        reason_codes_json = excluded.reason_codes_json,
+                        hard_stop_codes_json = excluded.hard_stop_codes_json,
+                        occurred_at = excluded.occurred_at,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
+                        gate["commit_sha"], gate["automated_verdict"], gate["risk_score"],
+                        gate["changed_file_count"], gate["tests_total"], gate["tests_failed"],
+                        int(gate["provenance_complete"]), gate["summary"],
+                        json.dumps(gate["reason_codes"]), json.dumps(gate["hard_stop_codes"]),
+                        gate.get("review_status", "PENDING"), gate["occurred_at"], _now(),
+                    ),
+                )
+            connection.execute("COMMIT")
+        return {"upserted": len(gates)}
+
     @staticmethod
     def _gate_from_row(row: sqlite3.Row) -> dict[str, Any]:
         gate = dict(row)
@@ -349,4 +391,3 @@ class SQLiteStore:
             (metrics.pop("provenance_complete") or 0) * 100 / total, 1
         ) if total else 0
         return metrics
-

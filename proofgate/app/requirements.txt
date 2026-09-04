@@ -1,0 +1,3 @@
+databricks-sdk>=0.89.0
+databricks-ai-search
+psycopg[binary,pool]>=3.2.3,<4

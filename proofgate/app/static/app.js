@@ -156,6 +156,68 @@ function renderEvidence() {
     }
     evidencePanel.append(audit);
   }
+
+  evidencePanel.append(element("p", "section-label", "AI evidence brief"));
+  const aiBox = element("div", "ai-box");
+  const aiCopy = element("p", "", "Generate a short advisory explanation from allowlisted evidence only. It cannot change this verdict.");
+  const explainButton = element("button", "button button-subtle", "Explain evidence");
+  explainButton.type = "button";
+  explainButton.addEventListener("click", () => explainGate(explainButton, aiCopy));
+  aiBox.append(aiCopy, explainButton);
+  evidencePanel.append(aiBox);
+
+  evidencePanel.append(element("p", "section-label", "Similar historical evidence"));
+  const similarBox = element("div", "similar-box");
+  const similarIntro = element("p", "", "Compare this gate with prior categorical risk patterns—without sending source code or raw prompts.");
+  const similarButton = element("button", "button button-subtle", "Find similar changes");
+  similarButton.type = "button";
+  similarButton.addEventListener("click", () => findSimilar(similarButton, similarBox, similarIntro));
+  similarBox.append(similarIntro, similarButton);
+  evidencePanel.append(similarBox);
+}
+
+async function explainGate(button, output) {
+  button.disabled = true;
+  button.textContent = "Explaining…";
+  try {
+    const result = await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/explain`, {
+      method: "POST", body: "{}",
+    });
+    output.textContent = result.explanation;
+    button.textContent = result.generated_by === "deterministic-local-preview" ? "Local preview" : "Databricks AI";
+  } catch (error) {
+    output.textContent = `Explanation unavailable: ${error.message}`;
+    button.textContent = "Try again";
+    button.disabled = false;
+  }
+}
+
+async function findSimilar(button, box, intro) {
+  button.disabled = true;
+  button.textContent = "Searching…";
+  try {
+    const result = await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/similar`, {
+      method: "POST", body: "{}",
+    });
+    box.replaceChildren();
+    if (!result.matches.length) {
+      box.append(element("p", "", "No comparable historical evidence found."));
+      return;
+    }
+    for (const match of result.matches) {
+      const row = element("div", "similar-row");
+      const copy = element("div");
+      copy.append(element("strong", "", `${match.repo_id} · ${match.decision.replaceAll("_", " ")}`), element("small", "", match.checkpoint_id));
+      const score = match.similarity_score == null ? "—" : `${Math.round(Number(match.similarity_score) * 100)}%`;
+      row.append(copy, element("span", riskClass(match.risk_score), `${score} similar`));
+      box.append(row);
+    }
+    box.append(element("small", "similar-source", result.generated_by === "databricks-ai-search" ? "Retrieved by Databricks AI Search" : "Local deterministic preview"));
+  } catch (error) {
+    intro.textContent = `Similarity unavailable: ${error.message}`;
+    button.textContent = "Try again";
+    button.disabled = false;
+  }
 }
 
 async function selectGate(eventId) {
@@ -183,6 +245,12 @@ function updateMetrics(metrics) {
 async function refresh({ keepSelection = true } = {}) {
   const [gatePayload, metricPayload] = await Promise.all([api("/api/gates"), api("/api/metrics")]);
   state.gates = gatePayload.gates;
+  const isDemo = gatePayload.data_mode === "demo";
+  $("data-mode-title").textContent = isDemo ? "Local demo" : "Databricks live";
+  $("data-mode-copy").textContent = isDemo ? "Seeded, synthetic evidence" : "Lakebase review state";
+  $("data-mode-chip").lastChild.textContent = isDemo ? " DEMO DATA" : " LIVE DATA";
+  $("reset-button").hidden = !isDemo;
+  $("sync-button").hidden = isDemo;
   updateMetrics(metricPayload.metrics);
   if (!keepSelection || !state.gates.some((gate) => gate.event_id === state.selectedId)) {
     state.selectedId = state.gates[0]?.event_id || null;
@@ -259,6 +327,22 @@ $("reset-button").addEventListener("click", async () => {
   }
 });
 
+$("sync-button").addEventListener("click", async () => {
+  const button = $("sync-button");
+  button.disabled = true;
+  button.textContent = "Syncing…";
+  try {
+    const result = await api("/api/admin/sync", { method: "POST", body: "{}" });
+    await refresh({ keepSelection: true });
+    showToast(`${result.upserted} governed changes synchronized.`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.textContent = "Sync evidence";
+    button.disabled = false;
+  }
+});
+
 for (const button of document.querySelectorAll(".filter-button")) {
   button.addEventListener("click", () => {
     state.filter = button.dataset.filter;
@@ -270,4 +354,3 @@ for (const button of document.querySelectorAll(".filter-button")) {
 refresh().catch((error) => {
   gateList.replaceChildren(element("div", "no-gates", `Could not load ProofGate: ${error.message}`));
 });
-
