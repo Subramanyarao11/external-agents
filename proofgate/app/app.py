@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import unquote, urlparse
 
+from decision_sync import DecisionPublisher, create_decision_publisher
 from explainer import GateExplainer, create_explainer
 from similarity import SimilarChangeFinder, create_similarity_finder
 from store import GateNotFoundError, ReviewConflictError, SQLiteStore, ValidationError
@@ -64,6 +65,10 @@ class ProofGateHandler(SimpleHTTPRequestHandler):
     @property
     def synchronizer(self) -> WarehouseSynchronizer | None:
         return self.server.synchronizer  # type: ignore[attr-defined]
+
+    @property
+    def decision_publisher(self) -> DecisionPublisher | None:
+        return self.server.decision_publisher  # type: ignore[attr-defined]
 
     def _json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -187,6 +192,19 @@ class ProofGateHandler(SimpleHTTPRequestHandler):
                 expected_version=body.get("expected_version"),
                 idempotency_key=str(body.get("idempotency_key", "")),
             )
+            result["decision_sync"] = {"status": "LOCAL_ONLY"}
+            if self.decision_publisher is not None:
+                gate = self.store.get_gate(unquote(match.group(1)))
+                try:
+                    result["decision_sync"] = self.decision_publisher.publish(
+                        result["decision"], gate
+                    )
+                except Exception as error:  # SDK errors are provider-specific
+                    self.log_error("decision publish failed: %s", type(error).__name__)
+                    result["decision_sync"] = {
+                        "status": "PENDING_RETRY",
+                        "message": "The review is saved, but CI synchronization is pending.",
+                    }
             self._json(HTTPStatus.OK, result)
         except GateNotFoundError:
             self._json(HTTPStatus.NOT_FOUND, {"error": "gate_not_found"})
@@ -214,12 +232,18 @@ class ProofGateServer(ThreadingHTTPServer):
         explainer: GateExplainer | None = None,
         similarity_finder: SimilarChangeFinder | None = None,
         synchronizer: WarehouseSynchronizer | None = None,
+        decision_publisher: DecisionPublisher | None = None,
     ):
         self.store = store
         self.data_mode = data_mode
         self.explainer = explainer or create_explainer()
         self.similarity_finder = similarity_finder or create_similarity_finder()
         self.synchronizer = synchronizer if synchronizer is not None else create_synchronizer()
+        self.decision_publisher = (
+            decision_publisher
+            if decision_publisher is not None
+            else create_decision_publisher()
+        )
         super().__init__(address, ProofGateHandler)
 
     def server_close(self) -> None:
@@ -229,10 +253,17 @@ class ProofGateServer(ThreadingHTTPServer):
         super().server_close()
 
 
-def create_server(host: str, port: int, database_path: str | Path) -> ProofGateServer:
+def create_server(
+    host: str,
+    port: int,
+    database_path: str | Path,
+    decision_publisher: DecisionPublisher | None = None,
+) -> ProofGateServer:
     store = SQLiteStore(database_path)
     store.seed_demo()
-    return ProofGateServer((host, port), store, "demo")
+    return ProofGateServer(
+        (host, port), store, "demo", decision_publisher=decision_publisher
+    )
 
 
 def create_runtime_server(host: str, port: int) -> ProofGateServer:

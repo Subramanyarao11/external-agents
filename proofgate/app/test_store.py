@@ -8,14 +8,25 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
 from app import create_server  # noqa: E402
+from decision_sync import DECISION_MERGE, DecisionPublisher  # noqa: E402
 from store import ReviewConflictError, SQLiteStore, ValidationError  # noqa: E402
 from warehouse_sync import WarehouseSynchronizer  # noqa: E402
+
+
+class RecordingDecisionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[dict, dict]] = []
+
+    def publish(self, decision: dict, gate: dict) -> dict[str, str]:
+        self.calls.append((decision, gate))
+        return {"status": "SYNCED", "statement_id": "statement-review-1"}
 
 
 class StoreTests(unittest.TestCase):
@@ -146,12 +157,57 @@ class StoreTests(unittest.TestCase):
         self.assertNotIn("raw_prompt", gate)
         self.assertNotIn("source_code", gate)
 
+    def test_decision_publisher_binds_values_instead_of_interpolating(self) -> None:
+        class FakeExecution:
+            def __init__(self) -> None:
+                self.arguments: dict = {}
+
+            def execute_statement(self, **kwargs):
+                self.arguments = kwargs
+                return SimpleNamespace(
+                    statement_id="statement-1",
+                    status=SimpleNamespace(state=SimpleNamespace(value="SUCCEEDED")),
+                )
+
+        execution = FakeExecution()
+        workspace = SimpleNamespace(statement_execution=execution)
+        publisher = DecisionPublisher(
+            "warehouse-1",
+            "main",
+            "proofgate",
+            workspace=workspace,
+            parameter_factory=lambda **kwargs: kwargs,
+        )
+        decision = {
+            "decision_id": "decision-1",
+            "gate_event_id": "gate-'quoted",
+            "action": "APPROVE",
+            "actor_id": "reviewer@example.test",
+            "reason": "I reviewed the bounded evidence.",
+            "previous_version": 1,
+            "occurred_at": "2026-09-04T12:00:00+00:00",
+            "idempotency_key": "review-once",
+        }
+        receipt = publisher.publish(decision, {"checkpoint_id": "checkpoint-1"})
+        self.assertEqual(receipt["status"], "SYNCED")
+        self.assertEqual(execution.arguments["statement"], DECISION_MERGE)
+        self.assertNotIn(decision["gate_event_id"], DECISION_MERGE)
+        parameters = {
+            item["name"]: item["value"] for item in execution.arguments["parameters"]
+        }
+        self.assertEqual(parameters["gate_event_id"], decision["gate_event_id"])
+        self.assertEqual(parameters["decision_reason"], decision["reason"])
+
 
 class HTTPTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
+        self.publisher = RecordingDecisionPublisher()
         self.server = create_server(
-            "127.0.0.1", 0, Path(self.temporary_directory.name) / "http.db"
+            "127.0.0.1",
+            0,
+            Path(self.temporary_directory.name) / "http.db",
+            decision_publisher=self.publisher,
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -201,6 +257,8 @@ class HTTPTests(unittest.TestCase):
         status, result = self.request("/api/gates/gate-checkout-retry/decision", body)
         self.assertEqual(status, 200)
         self.assertFalse(result["idempotent_replay"])
+        self.assertEqual(result["decision_sync"]["status"], "SYNCED")
+        self.assertEqual(len(self.publisher.calls), 1)
         body["idempotency_key"] = "http-stale-second-request"
         status, conflict = self.request("/api/gates/gate-checkout-retry/decision", body)
         self.assertEqual(status, 409)

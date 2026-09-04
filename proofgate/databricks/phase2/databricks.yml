@@ -144,6 +144,16 @@ resources:
           sql_warehouse:
             id: ${var.warehouse_id}
             permission: CAN_USE
+        - name: proofgate-gold-evidence
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.gold_change_risk_features
+            permission: SELECT
+        - name: proofgate-review-decisions
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.policy_decision_events
+            permission: MODIFY
         - name: proofgate-search-index
           uc_securable:
             securable_type: TABLE

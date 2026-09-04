@@ -288,7 +288,7 @@ form.addEventListener("submit", async (event) => {
   confirm.disabled = true;
   $("dialog-error").textContent = "";
   try {
-    await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/decision`, {
+    const result = await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/decision`, {
       method: "POST",
       body: JSON.stringify({
         action: state.pendingAction,
@@ -299,7 +299,10 @@ form.addEventListener("submit", async (event) => {
       }),
     });
     dialog.close();
-    showToast(`${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} recorded with audit evidence.`);
+    const synchronized = result.decision_sync?.status === "SYNCED";
+    showToast(synchronized
+      ? `${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} synced to the CI gate.`
+      : `${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} recorded; CI sync is ${result.decision_sync?.status || "local"}.`);
     await refresh();
   } catch (error) {
     $("dialog-error").textContent = error.status === 409

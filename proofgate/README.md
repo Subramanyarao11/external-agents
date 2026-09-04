@@ -61,6 +61,12 @@ keeps the gate local. Databricks outages degrade explicitly to local evidence
 by default. Set `databricks-required: "true"` if your production policy should
 fail closed when that evidence is unavailable.
 
+On a blocked change, the Control Room writes an immutable approve/reject receipt
+to `policy_decision_events`. Re-running the action reads that receipt by the
+passport event ID: approval produces `HUMAN_APPROVED` and releases the check;
+rejection produces `HUMAN_REJECTED` and blocks even in observation mode. The
+automated verdict remains unchanged in the artifact for auditability.
+
 The Databricks modes read these GitHub secrets/environment variables:
 
 ```text

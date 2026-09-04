@@ -8,6 +8,7 @@ import (
 
 	"github.com/entireio/external-agents/proofgate/contracts"
 	"github.com/entireio/external-agents/proofgate/engine"
+	"github.com/entireio/external-agents/proofgate/warehouse"
 )
 
 func TestShouldFailUsesConfiguredThreshold(t *testing.T) {
@@ -49,17 +50,17 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 		}},
 	}
 	databricks := ciDatabricksState{Mode: "roundtrip", Status: "ROUNDTRIP_COMPLETE", Warnings: []string{}}
-	if err := writeGitHubOutput(outputPath, "proofgate-result.json", passport, result, databricks); err != nil {
+	if err := writeGitHubOutput(outputPath, "proofgate-result.json", passport, result, "AWAITING_APPROVAL", databricks); err != nil {
 		t.Fatal(err)
 	}
-	if err := appendGitHubSummary(summaryPath, passport, result, databricks); err != nil {
+	if err := appendGitHubSummary(summaryPath, passport, result, "AWAITING_APPROVAL", databricks); err != nil {
 		t.Fatal(err)
 	}
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"decision=APPROVAL_REQUIRED", "risk_score=55", "checkpoint_id=01CHECKPOINT", "databricks_status=ROUNDTRIP_COMPLETE"} {
+	for _, expected := range []string{"decision=APPROVAL_REQUIRED", "enforcement_status=AWAITING_APPROVAL", "risk_score=55", "checkpoint_id=01CHECKPOINT", "databricks_status=ROUNDTRIP_COMPLETE"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("output missing %q: %s", expected, output)
 		}
@@ -68,7 +69,7 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"## ProofGate: APPROVAL_REQUIRED", "github-actions", "30 total / 0 failed", "REQUIRED_TEST_FAILED", "ROUNDTRIP_COMPLETE"} {
+	for _, expected := range []string{"## ProofGate: AWAITING_APPROVAL", "github-actions", "30 total / 0 failed", "REQUIRED_TEST_FAILED", "ROUNDTRIP_COMPLETE"} {
 		if !strings.Contains(string(summary), expected) {
 			t.Fatalf("summary missing %q: %s", expected, summary)
 		}
@@ -78,9 +79,29 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 func TestGitHubOutputRejectsNewlineInjection(t *testing.T) {
 	err := writeGitHubOutput(filepath.Join(t.TempDir(), "output"), "result.json", contracts.ChangePassport{
 		Change: contracts.ChangeIdentity{CheckpointID: "safe\nunsafe=true"},
-	}, engine.Result{Decision: engine.DecisionPass}, ciDatabricksState{Status: "OFF"})
+	}, engine.Result{Decision: engine.DecisionPass}, "PASS", ciDatabricksState{Status: "OFF"})
 	if err == nil {
 		t.Fatal("expected newline-bearing output to be rejected")
+	}
+}
+
+func TestHumanReviewControlsEffectiveEnforcement(t *testing.T) {
+	approved := &warehouse.ReviewDecision{Available: true, Action: "APPROVE"}
+	rejected := &warehouse.ReviewDecision{Available: true, Action: "REJECT"}
+	if got := enforcementStatus(engine.DecisionApprovalRequired, approved); got != "HUMAN_APPROVED" {
+		t.Fatalf("approved status = %q", got)
+	}
+	if shouldFailEnforcement("approval-required", engine.DecisionApprovalRequired, approved) {
+		t.Fatal("a recorded approval should release the gate")
+	}
+	if got := enforcementStatus(engine.DecisionPass, rejected); got != "HUMAN_REJECTED" {
+		t.Fatalf("rejected status = %q", got)
+	}
+	if !shouldFailEnforcement("never", engine.DecisionPass, rejected) {
+		t.Fatal("a recorded rejection must block even in observation mode")
+	}
+	if got := enforcementStatus(engine.DecisionApprovalRequired, nil); got != "AWAITING_APPROVAL" {
+		t.Fatalf("pending status = %q", got)
 	}
 }
 

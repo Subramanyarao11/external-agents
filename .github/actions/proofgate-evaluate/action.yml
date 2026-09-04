@@ -44,8 +44,11 @@ inputs:
 
 outputs:
   decision:
-    description: PASS, WARN, or APPROVAL_REQUIRED.
+    description: Deterministic automated verdict (PASS, WARN, or APPROVAL_REQUIRED).
     value: ${{ steps.gate.outputs.decision }}
+  enforcement-status:
+    description: Effective CI state, including AWAITING_APPROVAL or a human decision.
+    value: ${{ steps.gate.outputs.enforcement_status }}
   risk-score:
     description: Deterministic risk score from 0 to 100.
     value: ${{ steps.gate.outputs.risk_score }}
