@@ -32,9 +32,13 @@ Research sources:
 | Config directory | PASS | `.github/workflows/` and generated `.github/actions/entire-proofgate/` |
 | Documentation | PASS | Official GitHub and Anthropic sources listed above |
 
-Local verification on 4 September 2026 used a source-derived fixture only.
-A real hosted runner and Claude execution remain unverified until credentials
-are available in a test repository.
+Local verification on 4 September 2026 passed the shared external-agent
+compliance suite, semantic Claude execution fixtures, unit tests, and an actual
+Entire CLI lifecycle: TurnStart produced a shadow checkpoint, a user commit
+received an `Entire-Checkpoint` trailer, and `entire checkpoint explain`
+reported the GitHub Actions agent, model, touched file, prompt and tokens. A
+hosted runner execution remains unverified until a disposable repository and
+Claude credential are available.
 
 ## Binary
 
@@ -55,19 +59,20 @@ The adapter installs a repository-local composite action source under:
 .github/actions/entire-proofgate/action.yml
 ```
 
-The composite action is explicitly referenced by a workflow after the Claude
-step. It consumes `steps.<claude-id>.outputs.execution_file` and
-`steps.<claude-id>.outputs.session_id`, then asks the adapter to normalize the
-run and emit the lifecycle payloads through `entire hooks github-actions ...`.
+The composite action is explicitly referenced twice: `mode: begin` immediately
+before Claude and `mode: finish` in an `always()` step immediately after it.
+The finish call consumes `steps.<claude-id>.outputs.execution_file`. Both calls
+use the same deterministic `gha-<run-id>-<attempt>-<job>` identity, so the
+pre-agent snapshot and post-agent evidence belong to one Entire session.
 
 Hook input is JSON on stdin. The workflow never prints the raw transcript.
 
 | Workflow lifecycle | Hook name | Protocol event |
 |---|---|---|
-| Capture starts from GitHub event | `run-start` | 1 SessionStart |
-| Triggering issue/comment/prompt accepted | `turn-start` | 2 TurnStart |
-| Claude execution file becomes available | `turn-end` | 3 TurnEnd |
-| Capture finalizes in an `always()` step | `run-end` | 5 SessionEnd |
+| Begin step starts from GitHub event | `run-start` | 1 SessionStart |
+| Begin step accepts redacted task intent | `turn-start` | 2 TurnStart |
+| Finish step receives execution file | `turn-end` | 3 TurnEnd |
+| Finish step finalizes in `always()` | `run-end` | 5 SessionEnd |
 
 There is no compaction mapping. Subagent events are retained inside the Agent
 SDK transcript but are not promoted to Entire lifecycle events in v1.
@@ -78,10 +83,9 @@ SDK transcript but are not promoted to Entire lifecycle events in v1.
   `${RUNNER_TEMP}/entire-github-actions/sessions/`
 - Local/test fallback:
   `${TMPDIR}/entire-github-actions/<repo-hash>/sessions/`
-- Session ID source, in priority order:
-  1. Claude action `session_id` output
-  2. `system/init.session_id` from the execution file
-  3. deterministic `gha-<run-id>-<attempt>-<job>` fallback
+- Entire session ID: deterministic `gha-<run-id>-<attempt>-<job>`, available
+  before Claude starts. The native Claude `session_id` remains transcript
+  evidence and can be included in the Change Passport.
 - Session file:
   `<session-dir>/<sanitized-session-id>.json`
 - Session identity metadata includes the GitHub run URL, repository, event
@@ -189,7 +193,7 @@ Documented message shapes:
   `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`
 - Capture directory:
   `agents/entire-agent-github-actions/.probe-github-actions-*/captures/`
-- Verification status: **SOURCE-VERIFIED / LIVE-RUNNER UNVERIFIED**
+- Verification status: **LOCAL LIFECYCLE VERIFIED / LIVE-RUNNER UNVERIFIED**
 - The script accepts an actual action `execution_file` and `GITHUB_EVENT_PATH`,
   or can validate a source-derived sample without network or secrets.
 
@@ -207,4 +211,3 @@ Documented message shapes:
 - Timeout multiplier: 4.0 for hosted runner provisioning and model latency
 - Transient patterns: runner unavailable, rate limit, overloaded, 429, 503,
   529, workflow cancelled
-

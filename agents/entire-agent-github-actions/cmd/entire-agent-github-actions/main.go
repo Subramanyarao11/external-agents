@@ -1,7 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/entireio/external-agents/agents/entire-agent-github-actions/internal/githubactions"
@@ -59,6 +61,10 @@ func main() {
 		err = protocol.HandleExtractSummary(os.Args[2:], os.Stdout, agent)
 	case "calculate-tokens":
 		err = protocol.HandleCalculateTokens(os.Args[2:], os.Stdin, os.Stdout, agent)
+	case "capture-start":
+		err = handleCaptureStart(os.Args[2:], os.Stdout, agent)
+	case "capture-finish":
+		err = handleCaptureFinish(os.Args[2:], os.Stdout, agent)
 	default:
 		fatalf("unknown subcommand: %s", os.Args[1])
 	}
@@ -66,6 +72,40 @@ func main() {
 	if err != nil {
 		fatalf("%v", err)
 	}
+}
+
+func handleCaptureStart(args []string, stdout io.Writer, agent *githubactions.Agent) error {
+	flags := flag.NewFlagSet("capture-start", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	sessionID := flags.String("session-id", "", "stable workflow session id")
+	prompt := flags.String("prompt", "", "task prompt")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	result, err := agent.CaptureStart(*sessionID, *prompt)
+	if err != nil {
+		return err
+	}
+	return protocol.WriteJSON(stdout, result)
+}
+
+func handleCaptureFinish(args []string, stdout io.Writer, agent *githubactions.Agent) error {
+	flags := flag.NewFlagSet("capture-finish", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	executionFile := flags.String("execution-file", "", "Claude Code Action execution_file")
+	sessionID := flags.String("session-id", "", "stable workflow session id")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	resolved, err := githubactions.ResolveExecutionFile(*executionFile)
+	if err != nil {
+		return err
+	}
+	result, err := agent.CaptureFinish(resolved, *sessionID)
+	if err != nil {
+		return err
+	}
+	return protocol.WriteJSON(stdout, result)
 }
 
 func fatalf(format string, args ...any) {

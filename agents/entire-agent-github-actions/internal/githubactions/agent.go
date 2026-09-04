@@ -3,9 +3,11 @@
 package githubactions
 
 import (
-	"errors"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/entireio/external-agents/agents/entire-agent-github-actions/internal/protocol"
 )
@@ -51,85 +53,31 @@ func (a *Agent) GetSessionID(input *protocol.HookInputJSON) string {
 	return input.SessionID
 }
 
-func (a *Agent) GetSessionDir(_ string) (string, error) {
+func (a *Agent) GetSessionDir(repoPath string) (string, error) {
 	base := os.Getenv("RUNNER_TEMP")
-	if base == "" {
-		base = os.TempDir()
+	if base != "" {
+		return filepath.Join(base, "entire-github-actions", "sessions"), nil
 	}
-	return filepath.Join(base, "entire-github-actions", "sessions"), nil
+	if strings.TrimSpace(repoPath) == "" {
+		repoPath = protocol.RepoRoot()
+	}
+	absolute, err := filepath.Abs(repoPath)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(absolute))
+	repoKey := hex.EncodeToString(digest[:6])
+	return filepath.Join(os.TempDir(), "entire-github-actions", repoKey, "sessions"), nil
 }
 
 func (a *Agent) ResolveSessionFile(sessionDir, sessionID string) string {
-	return filepath.Join(sessionDir, sessionID+".json")
-}
-
-func (a *Agent) ReadSession(input *protocol.HookInputJSON) (protocol.AgentSessionJSON, error) {
-	if input == nil || input.SessionID == "" {
-		return protocol.AgentSessionJSON{}, errors.New("session id is required")
-	}
-	return protocol.AgentSessionJSON{
-		SessionID:     input.SessionID,
-		AgentName:     "github-actions",
-		RepoPath:      protocol.RepoRoot(),
-		SessionRef:    input.SessionRef,
-		StartTime:     input.Timestamp,
-		ModifiedFiles: []string{},
-		NewFiles:      []string{},
-		DeletedFiles:  []string{},
-	}, nil
-}
-
-func (a *Agent) WriteSession(protocol.AgentSessionJSON) error {
-	return errors.New("write-session not implemented")
-}
-
-func (a *Agent) ReadTranscript(sessionRef string) ([]byte, error) {
-	return os.ReadFile(sessionRef)
-}
-
-func (a *Agent) ChunkTranscript([]byte, int) ([][]byte, error) {
-	return nil, errors.New("chunk-transcript not implemented")
-}
-
-func (a *Agent) ReassembleTranscript([][]byte) ([]byte, error) {
-	return nil, errors.New("reassemble-transcript not implemented")
-}
-
-func (a *Agent) CompactTranscript(string) (protocol.CompactTranscriptResponse, error) {
-	return protocol.CompactTranscriptResponse{}, errors.New("compact-transcript not implemented")
+	return filepath.Join(sessionDir, safeFilename(sessionID)+".json")
 }
 
 func (a *Agent) FormatResumeCommand(sessionID string) string {
-	return "gh run rerun " + sessionID
+	return "gh run rerun -- " + shellQuote(sessionID)
 }
 
-func (a *Agent) ParseHook(string, []byte) (*protocol.EventJSON, error) {
-	return nil, nil
-}
-
-func (a *Agent) InstallHooks(bool, bool) (int, error) {
-	return 0, errors.New("install-hooks not implemented")
-}
-
-func (a *Agent) UninstallHooks() error   { return nil }
-func (a *Agent) AreHooksInstalled() bool { return false }
-
-func (a *Agent) GetTranscriptPosition(string) (int, error) {
-	return 0, errors.New("get-transcript-position not implemented")
-}
-
-func (a *Agent) ExtractModifiedFiles(string, int) ([]string, int, error) {
-	return nil, 0, errors.New("extract-modified-files not implemented")
-}
-
-func (a *Agent) ExtractPrompts(string, int) ([]string, error) {
-	return nil, errors.New("extract-prompts not implemented")
-}
-
-func (a *Agent) ExtractSummary(string) (string, bool, error) {
-	return "", false, errors.New("extract-summary not implemented")
-}
-
-func (a *Agent) CalculateTokens([]byte, int) (protocol.TokenUsageResponse, error) {
-	return protocol.TokenUsageResponse{}, errors.New("calculate-tokens not implemented")
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
