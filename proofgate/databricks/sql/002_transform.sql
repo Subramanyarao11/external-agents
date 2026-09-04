@@ -78,6 +78,7 @@ USING (
     CAST(get_json_object(payload_json, '$.changed_line_count') AS INT) AS changed_line_count,
     CAST(get_json_object(payload_json, '$.impacted_entity_count') AS INT) AS impacted_entity_count,
     CAST(get_json_object(payload_json, '$.dependency_depth') AS INT) AS dependency_depth,
+    from_json(get_json_object(payload_json, '$.sensitive_components'), 'ARRAY<STRING>') AS sensitive_components,
     CAST(get_json_object(payload_json, '$.test_total') AS INT) AS test_total,
     CAST(get_json_object(payload_json, '$.test_failed') AS INT) AS test_failed,
     CAST(get_json_object(payload_json, '$.required_test_missing') AS BOOLEAN) AS required_test_missing,

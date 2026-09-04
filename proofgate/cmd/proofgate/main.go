@@ -188,13 +188,7 @@ func export(args []string, stdout io.Writer) error {
 	if *dryRun {
 		return writeJSON(stdout, event)
 	}
-	client, err := warehouse.NewClient(warehouse.Config{
-		Host:        os.Getenv("DATABRICKS_HOST"),
-		Token:       os.Getenv("DATABRICKS_TOKEN"),
-		WarehouseID: os.Getenv("DATABRICKS_SQL_WAREHOUSE_ID"),
-		Catalog:     os.Getenv("PROOFGATE_DATABRICKS_CATALOG"),
-		Schema:      os.Getenv("PROOFGATE_DATABRICKS_SCHEMA"),
-	})
+	client, err := warehouseClientFromEnvironment()
 	if err != nil {
 		return err
 	}
@@ -205,6 +199,16 @@ func export(args []string, stdout io.Writer) error {
 		return err
 	}
 	return writeJSON(stdout, ingested)
+}
+
+func warehouseClientFromEnvironment() (*warehouse.Client, error) {
+	return warehouse.NewClient(warehouse.Config{
+		Host:        os.Getenv("DATABRICKS_HOST"),
+		Token:       os.Getenv("DATABRICKS_TOKEN"),
+		WarehouseID: os.Getenv("DATABRICKS_SQL_WAREHOUSE_ID"),
+		Catalog:     os.Getenv("PROOFGATE_DATABRICKS_CATALOG"),
+		Schema:      os.Getenv("PROOFGATE_DATABRICKS_SCHEMA"),
+	})
 }
 
 func evaluate(args []string, stdout io.Writer) error {

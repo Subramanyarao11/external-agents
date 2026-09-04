@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -10,17 +11,35 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/entireio/external-agents/proofgate/contracts"
 	"github.com/entireio/external-agents/proofgate/engine"
+	"github.com/entireio/external-agents/proofgate/warehouse"
 )
 
 type ciGateOptions struct {
-	build         buildOptions
-	resultPath    string
-	githubOutput  string
-	githubSummary string
-	failOn        string
+	build              buildOptions
+	resultPath         string
+	githubOutput       string
+	githubSummary      string
+	failOn             string
+	databricksMode     string
+	databricksRequired bool
+}
+
+type ciDatabricksState struct {
+	Mode             string                  `json:"mode"`
+	Status           string                  `json:"status"`
+	HistoryAvailable bool                    `json:"history_available"`
+	Warnings         []string                `json:"warnings"`
+	Ingest           *warehouse.IngestResult `json:"ingest,omitempty"`
+}
+
+type ciGateOutput struct {
+	Passport   contracts.ChangePassport `json:"passport"`
+	Result     engine.Result            `json:"result"`
+	Databricks ciDatabricksState        `json:"databricks"`
 }
 
 type policyFailure struct {
@@ -40,31 +59,97 @@ func ciGate(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	databricks := ciDatabricksState{
+		Mode: options.databricksMode, Status: "OFF", Warnings: []string{},
+	}
+	var databricksClient *warehouse.Client
+	var databricksErrors []error
+	if options.databricksMode != "off" {
+		databricks.Status = "READY"
+		databricksClient, err = warehouseClientFromEnvironment()
+		if err != nil {
+			databricks.Status = "DEGRADED"
+			databricks.Warnings = append(databricks.Warnings, "DATABRICKS_CONFIGURATION_UNAVAILABLE")
+			databricksErrors = append(databricksErrors, err)
+		}
+	}
+	if databricksClient != nil && modeNeedsHistory(options.databricksMode) {
+		ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+		history, historyErr := databricksClient.LookupHistory(ctx, warehouse.HistoryQuery{
+			RepositoryID:        passport.Repository.ID,
+			ExcludeEventID:      passport.EventID,
+			Before:              passport.OccurredAt,
+			SnapshotAt:          now,
+			BaselineWindowDays:  30,
+			ChangedFileCount:    len(passport.Impact.ChangedFiles),
+			ImpactedEntityCount: len(passport.Impact.ImpactedEntities),
+			DependencyDepth:     passport.Impact.DependencyDepth,
+			SensitiveComponents: passport.Impact.SensitiveComponents,
+		})
+		cancel()
+		if historyErr != nil {
+			databricks.Status = "DEGRADED"
+			databricks.Warnings = append(databricks.Warnings, "DATABRICKS_HISTORY_UNAVAILABLE")
+			databricksErrors = append(databricksErrors, historyErr)
+		} else {
+			passport.History = history
+			databricks.HistoryAvailable = true
+		}
+	}
 	result, err := engine.Evaluate(passport, engine.DefaultPolicy(), now)
 	if err != nil {
 		return err
 	}
-	output := gateOutput{Passport: passport, Result: result}
+	if databricksClient != nil && modeNeedsExport(options.databricksMode) {
+		event, eventErr := warehouse.BuildEvent(passport, result)
+		if eventErr != nil {
+			databricks.Status = "DEGRADED"
+			databricks.Warnings = append(databricks.Warnings, "DATABRICKS_EXPORT_REFUSED")
+			databricksErrors = append(databricksErrors, eventErr)
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+			ingest, ingestErr := databricksClient.Ingest(ctx, event)
+			cancel()
+			if ingestErr != nil {
+				databricks.Status = "DEGRADED"
+				databricks.Warnings = append(databricks.Warnings, "DATABRICKS_EXPORT_UNAVAILABLE")
+				databricksErrors = append(databricksErrors, ingestErr)
+			} else {
+				databricks.Ingest = &ingest
+			}
+		}
+	}
+	if databricks.Status != "DEGRADED" {
+		databricks.Status = databricksSuccessStatus(options.databricksMode)
+	}
+	output := ciGateOutput{Passport: passport, Result: result, Databricks: databricks}
 
 	if err := writeJSONFileAtomic(options.resultPath, output); err != nil {
 		return fmt.Errorf("write result: %w", err)
 	}
 	if options.githubOutput != "" {
-		if err := writeGitHubOutput(options.githubOutput, options.resultPath, passport, result); err != nil {
+		if err := writeGitHubOutput(options.githubOutput, options.resultPath, passport, result, databricks); err != nil {
 			return fmt.Errorf("write GitHub output: %w", err)
 		}
 	}
 	if options.githubSummary != "" {
-		if err := appendGitHubSummary(options.githubSummary, passport, result); err != nil {
+		if err := appendGitHubSummary(options.githubSummary, passport, result, databricks); err != nil {
 			return fmt.Errorf("write GitHub summary: %w", err)
 		}
 	}
 
 	_, _ = fmt.Fprintf(stdout, "ProofGate: %s (risk score %d, %d hard stops)\n", result.Decision, result.Score, len(result.HardStops))
-	if shouldFail(options.failOn, result.Decision) {
-		return policyFailure{decision: result.Decision}
+	if databricks.Status == "DEGRADED" {
+		_, _ = fmt.Fprintln(stdout, "Databricks: DEGRADED (continuing with explicitly marked partial evidence)")
 	}
-	return nil
+	var finalErrors []error
+	if options.databricksRequired && len(databricksErrors) > 0 {
+		finalErrors = append(finalErrors, fmt.Errorf("required Databricks operation failed: %w", errors.Join(databricksErrors...)))
+	}
+	if shouldFail(options.failOn, result.Decision) {
+		finalErrors = append(finalErrors, policyFailure{decision: result.Decision})
+	}
+	return errors.Join(finalErrors...)
 }
 
 func parseCIGateOptions(args []string) (ciGateOptions, error) {
@@ -87,6 +172,8 @@ func parseCIGateOptions(args []string) (ciGateOptions, error) {
 	flags.StringVar(&options.githubOutput, "github-output", os.Getenv("GITHUB_OUTPUT"), "GitHub Actions output file")
 	flags.StringVar(&options.githubSummary, "github-summary", os.Getenv("GITHUB_STEP_SUMMARY"), "GitHub Actions job-summary file")
 	flags.StringVar(&options.failOn, "fail-on", "approval-required", "approval-required, warn, or never")
+	flags.StringVar(&options.databricksMode, "databricks-mode", "off", "off, history, export, or roundtrip")
+	flags.BoolVar(&options.databricksRequired, "databricks-required", false, "fail CI if a requested Databricks operation is unavailable")
 	if err := flags.Parse(args); err != nil {
 		return options, err
 	}
@@ -99,7 +186,33 @@ func parseCIGateOptions(args []string) (ciGateOptions, error) {
 	default:
 		return options, fmt.Errorf("invalid --fail-on %q", options.failOn)
 	}
+	switch options.databricksMode {
+	case "off", "history", "export", "roundtrip":
+	default:
+		return options, fmt.Errorf("invalid --databricks-mode %q", options.databricksMode)
+	}
 	return options, nil
+}
+
+func modeNeedsHistory(mode string) bool {
+	return mode == "history" || mode == "roundtrip"
+}
+
+func modeNeedsExport(mode string) bool {
+	return mode == "export" || mode == "roundtrip"
+}
+
+func databricksSuccessStatus(mode string) string {
+	switch mode {
+	case "history":
+		return "HISTORY_LOADED"
+	case "export":
+		return "EXPORTED"
+	case "roundtrip":
+		return "ROUNDTRIP_COMPLETE"
+	default:
+		return "OFF"
+	}
 }
 
 func shouldFail(threshold string, decision engine.Decision) bool {
@@ -147,15 +260,16 @@ func writeJSONFileAtomic(path string, value any) error {
 	return os.Rename(temporaryPath, absolute)
 }
 
-func writeGitHubOutput(path, resultPath string, passport contracts.ChangePassport, result engine.Result) error {
+func writeGitHubOutput(path, resultPath string, passport contracts.ChangePassport, result engine.Result, databricks ciDatabricksState) error {
 	values := map[string]string{
-		"checkpoint_id": passport.Change.CheckpointID,
-		"decision":      string(result.Decision),
-		"hard_stops":    strconv.Itoa(len(result.HardStops)),
-		"result_path":   resultPath,
-		"risk_score":    strconv.Itoa(result.Score),
+		"checkpoint_id":     passport.Change.CheckpointID,
+		"decision":          string(result.Decision),
+		"hard_stops":        strconv.Itoa(len(result.HardStops)),
+		"result_path":       resultPath,
+		"risk_score":        strconv.Itoa(result.Score),
+		"databricks_status": databricks.Status,
 	}
-	keys := []string{"decision", "risk_score", "hard_stops", "checkpoint_id", "result_path"}
+	keys := []string{"decision", "risk_score", "hard_stops", "checkpoint_id", "result_path", "databricks_status"}
 	var output strings.Builder
 	for _, key := range keys {
 		value := values[key]
@@ -167,7 +281,7 @@ func writeGitHubOutput(path, resultPath string, passport contracts.ChangePasspor
 	return appendFile(path, output.String())
 }
 
-func appendGitHubSummary(path string, passport contracts.ChangePassport, result engine.Result) error {
+func appendGitHubSummary(path string, passport contracts.ChangePassport, result engine.Result, databricks ciDatabricksState) error {
 	var summary strings.Builder
 	_, _ = fmt.Fprintf(&summary, "## ProofGate: %s\n\n", result.Decision)
 	_, _ = fmt.Fprintf(&summary, "| Evidence | Value |\n| --- | --- |\n")
@@ -177,7 +291,19 @@ func appendGitHubSummary(path string, passport contracts.ChangePassport, result 
 	_, _ = fmt.Fprintf(&summary, "| Source adapter | %s |\n", markdownCell(passport.Authoring.SourceAdapter, "unknown"))
 	_, _ = fmt.Fprintf(&summary, "| Provenance complete | %t |\n", passport.Authoring.ProvenanceComplete)
 	_, _ = fmt.Fprintf(&summary, "| Change size | %d files / %d changed lines |\n", len(passport.Impact.ChangedFiles), passport.Impact.ChangedLineCount)
-	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed |\n\n", passport.Tests.Total, passport.Tests.Failed)
+	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed |\n", passport.Tests.Total, passport.Tests.Failed)
+	_, _ = fmt.Fprintf(&summary, "| Databricks | %s |\n", markdownText(databricks.Status))
+	if passport.History.Available {
+		_, _ = fmt.Fprintf(&summary, "| Historical baseline | %d changes over %d days |\n", passport.History.BaselineChangeCount, passport.History.BaselineWindowDays)
+	}
+	summary.WriteString("\n")
+	if len(databricks.Warnings) > 0 {
+		summary.WriteString("### Evidence availability\n\n")
+		for _, warning := range databricks.Warnings {
+			_, _ = fmt.Fprintf(&summary, "- **%s** — the local deterministic gate still ran.\n", markdownText(warning))
+		}
+		summary.WriteString("\n")
+	}
 
 	if len(result.HardStops) > 0 {
 		summary.WriteString("### Required action\n\n")

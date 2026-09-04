@@ -36,6 +36,9 @@ jobs:
           test-report: proofgate-test-report.json
           denied-prefixes: payments/production,infra/production
           fail-on: approval-required
+          # Change to roundtrip after configuring the five Databricks secrets
+          # documented in proofgate/README.md.
+          databricks-mode: off
 
       - name: Preserve the Change Passport
         if: always()

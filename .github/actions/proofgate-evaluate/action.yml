@@ -32,6 +32,12 @@ inputs:
   fail-on:
     description: Fail on approval-required, warn, or never.
     default: approval-required
+  databricks-mode:
+    description: Use Databricks for off, history, export, or roundtrip processing.
+    default: off
+  databricks-required:
+    description: Fail when a requested Databricks operation is unavailable.
+    default: "false"
   result-path:
     description: Machine-readable result path, relative to GITHUB_WORKSPACE.
     default: proofgate-result.json
@@ -52,6 +58,9 @@ outputs:
   result-path:
     description: Path to the generated machine-readable result.
     value: ${{ steps.gate.outputs.result_path }}
+  databricks-status:
+    description: OFF, HISTORY_LOADED, EXPORTED, ROUNDTRIP_COMPLETE, or DEGRADED.
+    value: ${{ steps.gate.outputs.databricks_status }}
 
 runs:
   using: composite
@@ -84,6 +93,8 @@ runs:
         PROOFGATE_SENSITIVE_PREFIXES: ${{ inputs.sensitive-prefixes }}
         PROOFGATE_DENIED_PREFIXES: ${{ inputs.denied-prefixes }}
         PROOFGATE_FAIL_ON: ${{ inputs.fail-on }}
+        PROOFGATE_DATABRICKS_MODE: ${{ inputs.databricks-mode }}
+        PROOFGATE_DATABRICKS_REQUIRED: ${{ inputs.databricks-required }}
         PROOFGATE_RESULT_PATH: ${{ inputs.result-path }}
       run: |
         args=(
@@ -97,6 +108,8 @@ runs:
           --sensitive-prefixes "$PROOFGATE_SENSITIVE_PREFIXES"
           --denied-prefixes "$PROOFGATE_DENIED_PREFIXES"
           --fail-on "$PROOFGATE_FAIL_ON"
+          --databricks-mode "$PROOFGATE_DATABRICKS_MODE"
+          --databricks-required="$PROOFGATE_DATABRICKS_REQUIRED"
           --result "$GITHUB_WORKSPACE/$PROOFGATE_RESULT_PATH"
         )
         if [[ -n "$PROOFGATE_TEST_REPORT" ]]; then

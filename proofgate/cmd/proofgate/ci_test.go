@@ -48,17 +48,18 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 			Code: "REQUIRED_TEST_FAILED", Message: "A failing test cannot be auto-approved.",
 		}},
 	}
-	if err := writeGitHubOutput(outputPath, "proofgate-result.json", passport, result); err != nil {
+	databricks := ciDatabricksState{Mode: "roundtrip", Status: "ROUNDTRIP_COMPLETE", Warnings: []string{}}
+	if err := writeGitHubOutput(outputPath, "proofgate-result.json", passport, result, databricks); err != nil {
 		t.Fatal(err)
 	}
-	if err := appendGitHubSummary(summaryPath, passport, result); err != nil {
+	if err := appendGitHubSummary(summaryPath, passport, result, databricks); err != nil {
 		t.Fatal(err)
 	}
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"decision=APPROVAL_REQUIRED", "risk_score=55", "checkpoint_id=01CHECKPOINT"} {
+	for _, expected := range []string{"decision=APPROVAL_REQUIRED", "risk_score=55", "checkpoint_id=01CHECKPOINT", "databricks_status=ROUNDTRIP_COMPLETE"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("output missing %q: %s", expected, output)
 		}
@@ -67,7 +68,7 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"## ProofGate: APPROVAL_REQUIRED", "github-actions", "30 total / 0 failed", "REQUIRED_TEST_FAILED"} {
+	for _, expected := range []string{"## ProofGate: APPROVAL_REQUIRED", "github-actions", "30 total / 0 failed", "REQUIRED_TEST_FAILED", "ROUNDTRIP_COMPLETE"} {
 		if !strings.Contains(string(summary), expected) {
 			t.Fatalf("summary missing %q: %s", expected, summary)
 		}
@@ -77,9 +78,31 @@ func TestGitHubFilesContainSafeOutputsAndReadableSummary(t *testing.T) {
 func TestGitHubOutputRejectsNewlineInjection(t *testing.T) {
 	err := writeGitHubOutput(filepath.Join(t.TempDir(), "output"), "result.json", contracts.ChangePassport{
 		Change: contracts.ChangeIdentity{CheckpointID: "safe\nunsafe=true"},
-	}, engine.Result{Decision: engine.DecisionPass})
+	}, engine.Result{Decision: engine.DecisionPass}, ciDatabricksState{Status: "OFF"})
 	if err == nil {
 		t.Fatal("expected newline-bearing output to be rejected")
+	}
+}
+
+func TestDatabricksModesHaveExplicitBehavior(t *testing.T) {
+	tests := []struct {
+		mode          string
+		needsHistory  bool
+		needsExport   bool
+		successStatus string
+	}{
+		{"off", false, false, "OFF"},
+		{"history", true, false, "HISTORY_LOADED"},
+		{"export", false, true, "EXPORTED"},
+		{"roundtrip", true, true, "ROUNDTRIP_COMPLETE"},
+	}
+	for _, test := range tests {
+		if modeNeedsHistory(test.mode) != test.needsHistory || modeNeedsExport(test.mode) != test.needsExport {
+			t.Fatalf("unexpected behavior for mode %q", test.mode)
+		}
+		if got := databricksSuccessStatus(test.mode); got != test.successStatus {
+			t.Fatalf("status for %q = %q, want %q", test.mode, got, test.successStatus)
+		}
 	}
 }
 
