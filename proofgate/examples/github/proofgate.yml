@@ -20,12 +20,21 @@ jobs:
         shell: bash
         run: git fetch origin '+refs/heads/entire/*:refs/remotes/origin/entire/*'
 
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: proofgate/go.mod
+          cache: false
+
       - name: Run tests and produce allowlisted evidence
         shell: bash
         run: |
-          # Replace this sample with your real test commands. The report contains
-          # only suite names, counts, status and an opaque CI evidence ID.
-          cp proofgate/examples/test-report.json proofgate-test-report.json
+          cd proofgate
+          go run gotest.tools/gotestsum@v1.13.0 \
+            --junitfile "$GITHUB_WORKSPACE/proofgate-junit.xml" -- ./...
+          go run ./cmd/proofgate junit-report \
+            --junit proofgate="$GITHUB_WORKSPACE/proofgate-junit.xml" \
+            --output "$GITHUB_WORKSPACE/proofgate-test-report.json"
 
       - id: proofgate
         name: Evaluate the change

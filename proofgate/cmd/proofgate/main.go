@@ -19,10 +19,12 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: proofgate <build-passport|gate|ci-gate|evaluate|export|default-policy> [flags]")
+		fatalf("usage: proofgate <junit-report|build-passport|gate|ci-gate|evaluate|export|default-policy> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
+	case "junit-report":
+		err = junitReport(os.Args[2:], os.Stdout)
 	case "build-passport":
 		err = buildPassport(os.Args[2:], os.Stdout)
 	case "gate":

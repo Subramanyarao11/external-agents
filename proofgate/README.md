@@ -21,12 +21,23 @@ trailer, Entire's checkpoint explanation, the git diff, and structured CI test
 evidence:
 
 ```bash
+go run ./cmd/proofgate junit-report \
+  --junit proofgate=examples/junit.xml \
+  --evidence-prefix github-run-123-attempt-1 \
+  --output examples/generated-test-report.json
+
 go run ./cmd/proofgate gate \
   --repo /path/to/target-repository \
   --repo-id mobile-checkout \
   --repo-opted-in \
   --tests examples/test-report.json
 ```
+
+`junit-report` accepts repeated `--junit name=path` inputs and repeated
+`--optional-junit name=path` inputs. It records only suite names, counts,
+pass/fail/skip state and an opaque run ID—never test output, stack traces,
+source snippets or secrets. A fully skipped required suite becomes missing test
+evidence and triggers the appropriate hard stop.
 
 `gate` emits both the generated passport and its deterministic result.
 `build-passport` emits only the passport when separate evaluation/export steps
