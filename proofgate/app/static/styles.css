@@ -113,7 +113,9 @@ h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.025em; }
 .empty-state p { max-width: 330px; margin-top: 9px; font-size: 12px; line-height: 1.6; }
 .evidence-heading { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 19px; border-bottom: 1px solid var(--line); }
 .evidence-heading h2 { margin-top: 4px; font-size: 21px; }
-.checkpoint { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+.commit-sha, .checkpoint { display: block; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+.commit-sha { max-width: 52ch; margin-top: 6px; overflow-wrap: anywhere; color: var(--muted-strong); }
+.checkpoint { margin-top: 5px; }
 .risk-orb { width: 66px; height: 66px; flex: none; display: grid; place-content: center; border: 1px solid var(--line-strong); border-radius: 50%; text-align: center; }
 .risk-orb strong { font-size: 22px; line-height: 1; }
 .risk-orb small { color: var(--muted); font-size: 8px; }

@@ -52,6 +52,11 @@ function formatTime(value) {
   }).format(new Date(value));
 }
 
+function shortSha(value) {
+  const sha = evidenceValue(value, "unknown");
+  return sha.length > 10 ? sha.slice(0, 10) : sha;
+}
+
 function visibleGates() {
   if (state.filter === "PENDING") return state.gates.filter((gate) => gate.review_status === "PENDING");
   if (state.filter === "RESOLVED") return state.gates.filter((gate) => gate.review_status !== "PENDING");
@@ -72,7 +77,9 @@ function renderGates() {
 
     const copy = element("div");
     const title = element("div", "gate-title-row");
-    title.append(element("span", "gate-repo", gate.repo_id), element("span", "gate-sha", gate.commit_sha));
+    const sha = element("span", "gate-sha", shortSha(gate.commit_sha));
+    sha.title = gate.commit_sha;
+    title.append(element("span", "gate-repo", gate.repo_id), sha);
     copy.append(title, element("p", "gate-summary", gate.summary));
     const meta = element("div", "gate-meta");
     meta.append(badge(gate.review_status), element("span", "", formatTime(gate.occurred_at)));
@@ -133,7 +140,14 @@ function renderEvidence() {
   const checkpointLabel = gate.checkpoint_id && gate.checkpoint_id !== "missing"
     ? gate.checkpoint_id
     : "No Entire checkpoint attached";
-  headingCopy.append(element("p", "eyebrow", "Change passport"), element("h2", "", `${gate.repo_id} · ${gate.commit_sha}`), element("span", "checkpoint", checkpointLabel));
+  const commit = element("span", "commit-sha", gate.commit_sha);
+  commit.title = gate.commit_sha;
+  headingCopy.append(
+    element("p", "eyebrow", "Change passport"),
+    element("h2", "", gate.repo_id),
+    commit,
+    element("span", "checkpoint", checkpointLabel),
+  );
   const orb = element("div", `risk-orb ${riskClass(gate.risk_score)}`);
   orb.append(element("strong", "", String(gate.risk_score)), element("small", "", "RISK"));
   heading.append(headingCopy, orb);
