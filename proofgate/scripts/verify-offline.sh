@@ -24,6 +24,7 @@ echo "[2/7] Go static analysis"
 
 echo "[3/7] Control Room tests"
 (cd "$proofgate_dir/app" && PROOFGATE_QUIET=1 python3 -m unittest -v)
+(cd "$proofgate_dir/scripts" && python3 -m unittest -v test_publish_pr_report.py)
 
 echo "[4/7] GitHub workflow lint"
 (cd "$repository_dir" && go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 \

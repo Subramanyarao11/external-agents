@@ -8,7 +8,6 @@ USING (
     payload_hash,
     CASE
       WHEN schema_version <> '1.0' THEN 'UNSUPPORTED_SCHEMA_VERSION'
-      WHEN checkpoint_id IS NULL OR trim(checkpoint_id) = '' THEN 'MISSING_CHECKPOINT_ID'
       WHEN redaction_version <> 'proofgate-allowlist-v1' THEN 'UNSUPPORTED_REDACTION_VERSION'
       WHEN get_json_object(payload_json, '$.event_id') IS NULL THEN 'INVALID_PAYLOAD_JSON'
       ELSE 'UNKNOWN_VALIDATION_ERROR'
@@ -17,8 +16,6 @@ USING (
     current_timestamp() AS quarantined_at
   FROM bronze_checkpoint_events
   WHERE schema_version <> '1.0'
-     OR checkpoint_id IS NULL
-     OR trim(checkpoint_id) = ''
      OR redaction_version <> 'proofgate-allowlist-v1'
      OR get_json_object(payload_json, '$.event_id') IS NULL
 ) AS source
@@ -37,7 +34,7 @@ USING (
     ingested_at,
     repo_id,
     commit_sha,
-    checkpoint_id,
+    coalesce(nullif(trim(checkpoint_id), ''), 'missing') AS checkpoint_id,
     source_adapter,
     policy_version,
     payload_hash,
@@ -48,8 +45,6 @@ USING (
     event_id AS source_event_id
   FROM bronze_checkpoint_events
   WHERE schema_version = '1.0'
-    AND checkpoint_id IS NOT NULL
-    AND trim(checkpoint_id) <> ''
     AND redaction_version = 'proofgate-allowlist-v1'
     AND get_json_object(payload_json, '$.event_id') IS NOT NULL
 ) AS source

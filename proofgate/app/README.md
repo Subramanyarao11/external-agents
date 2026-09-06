@@ -32,6 +32,22 @@ python3 app.py
 Open <http://127.0.0.1:8000>. Local state is written to
 `proofgate/app/.local/proofgate.db` and is intentionally ignored by git.
 
+To demo the real GitHub/Databricks evidence locally without requiring a local
+Lakebase connection, use the governed warehouse-cache mode:
+
+```bash
+export DATABRICKS_CONFIG_PROFILE=proofgate
+export PROOFGATE_STORE=warehouse-cache
+export PROOFGATE_WAREHOUSE_ID=<sql-warehouse-id>
+export PROOFGATE_CATALOG=<catalog>
+export PROOFGATE_SCHEMA=<schema>
+python3 app.py
+```
+
+Open the page and choose **Sync evidence**. The UI stores an idempotent local
+cache of the allowlisted gold records and labels the source `DATABRICKS CACHE`;
+it does not mix those records with the four synthetic demo gates.
+
 ## Run in Databricks Apps
 
 The checked-in `app.yaml` selects Lakebase mode. Attach a Lakebase Autoscaling
@@ -41,9 +57,19 @@ endpoint path. The store uses the App service principal to mint a fresh OAuth
 database credential whenever the connection pool opens a connection; no static
 database password is stored.
 
+The checked-in catalog and schema values point at the deployed hackathon dev
+workspace. For another workspace, replace them in `app.yaml` or deploy through
+the bundle variables; no code change is required.
+
 Set `PROOFGATE_SEED_DEMO=1` only for a labelled event demonstration. Without it,
 the deployed app starts with an empty live queue and `/api/demo/reset` is
 disabled.
+
+An AI-authored change with no Entire checkpoint is still a valid partial
+governance record. It keeps the deterministic `MISSING_ENTIRE_CHECKPOINT` hard
+stop, uses the visible checkpoint label `missing`, and reaches the review queue
+instead of disappearing into quarantine. Malformed schemas, unsafe redaction
+versions, and invalid payloads remain quarantined.
 
 The same attached SQL Warehouse is used to publish allowlisted human decision
 receipts to `policy_decision_events`. The write uses bound parameters and the
