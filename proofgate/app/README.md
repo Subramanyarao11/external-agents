@@ -57,6 +57,10 @@ endpoint path. The store uses the App service principal to mint a fresh OAuth
 database credential whenever the connection pool opens a connection; no static
 database password is stored.
 
+The checked-in catalog and schema values point at the deployed hackathon dev
+workspace. For another workspace, replace them in `app.yaml` or deploy through
+the bundle variables; no code change is required.
+
 Set `PROOFGATE_SEED_DEMO=1` only for a labelled event demonstration. Without it,
 the deployed app starts with an empty live queue and `/api/demo/reset` is
 disabled.

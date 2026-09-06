@@ -9,12 +9,20 @@ env:
   - name: PROOFGATE_WAREHOUSE_ID
     valueFrom: proofgate-warehouse
   - name: PROOFGATE_CATALOG
-    value: main
+    value: workspace
   - name: PROOFGATE_SCHEMA
-    value: proofgate_dev
+    value: dev_imsmr17_proofgate_dev
   - name: PROOFGATE_SEARCH_INDEX
     valueFrom: proofgate-search-index
   - name: PROOFGATE_SEARCH_ENDPOINT
     value: proofgate-similar-changes-dev
   - name: PROOFGATE_EXPLANATION_MODEL
     valueFrom: proofgate-explanation-model
+  - name: PROOFGATE_GITHUB_REPOSITORY
+    value: Subramanyarao11/external-agents
+  - name: PROOFGATE_GITHUB_WORKFLOW
+    value: proofgate.yml
+  - name: PROOFGATE_GITHUB_WORKFLOW_REF
+    value: main
+  - name: PROOFGATE_GITHUB_TOKEN
+    valueFrom: proofgate-github-token
