@@ -1,0 +1,9 @@
+Continue the already-planned curveball implementation now. Modify transcript.go through the single canonical normalizer, update the independent verifier only if required, run the contract and full module tests, update BUILDATHON.md with the exact Graph evidence and honest risks, create the final implementation/verification commit, then run the final Graph semantic diff. Do not push or merge yet. Work directly; do not re-plan.
+
+---
+
+Before we push, make three final requirement-hardening corrections in this same post-curveball session:
+1. Add a focused test proving an entirely incomplete first/trailing JSONL record yields an empty partial result without error, then change parseEventJSONL so any unterminated tail returns the messages parsed so far (including zero), not only when len(messages) > 0.
+2. Remove the inaccurate wording about "three explicitly corrected timestamps" from both the curveball test comment and BUILDATHON.md. Say only that chat-rendered \\_ display escapes were mechanically restored to ordinary underscores; all 17 supplied records/values were preserved.
+3. Update BUILDATHON.md with the actual final Graph semantic-diff result you just obtained, including base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d, expected impacted parser/tests/verifier/docs, no unrelated implementation symbols, and that the fixture was validated directly because Graph does not parse JSONL.
+Run focused and full tests, go build, fixture validation, verifier checks, git diff --check, and the final Graph diff again after these changes. Commit this as a small final curveball verification/polish milestone so Entire creates one last checkpoint. Do not push or merge.

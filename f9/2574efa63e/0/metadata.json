@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "f92574efa63e",
+  "session_id": "01a07571-d32a-74c0-830c-3b5dd1548323",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T07:15:37.270083Z",
+  "branch": "curveball/dual-format-resilience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md",
+    "agents/entire-agent-github-actions/internal/githubactions/curveball_transcript_test.go",
+    "agents/entire-agent-github-actions/internal/githubactions/transcript.go"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "6a9ea1aa0896",
+  "checkpoint_transcript_start": 680,
+  "transcript_lines_at_start": 680,
+  "compact_transcript_start": 79,
+  "token_usage": {
+    "input_tokens": 9639,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1654528,
+    "output_tokens": 3171,
+    "api_call_count": 8
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T07:15:37.166417Z",
+    "agent_lines": 17,
+    "agent_removed": 6,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 17,
+    "total_lines_changed": 23,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
