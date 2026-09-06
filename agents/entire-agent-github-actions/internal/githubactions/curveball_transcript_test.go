@@ -20,9 +20,9 @@ const (
 	v2Model     = "acmecode-pro"
 )
 
-// The organizer fixture is preserved exactly except for the instructed
-// mechanical restoration of chat-rendered \_ sequences to ordinary underscores
-// and the three explicitly supplied timestamp corrections.
+// The organizer fixture preserves all 17 supplied records and values; the only
+// normalization mechanically restores chat-rendered \_ display escapes to
+// ordinary underscores.
 
 var v2ModifiedFiles = []string{
 	"src/checkout/apply_coupon.ts",
@@ -96,6 +96,17 @@ func TestCurveballIncompleteJSONLReturnsPartialResult(t *testing.T) {
 		},
 		compactContains: []string{`"agent":"github-actions"`, v2Prompt, `"name":"file_changed"`, "src/checkout/apply_coupon.ts"},
 	})
+}
+
+func TestCurveballEntirelyIncompleteJSONLReturnsEmptyPartialResult(t *testing.T) {
+	t.Parallel()
+	messages, err := parseSDKMessages([]byte(`{"timestamp":"2026-09-06T09:00`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("messages = %d, want empty partial result", len(messages))
+	}
 }
 
 func TestCurveballMalformedCompleteJSONLRecordFails(t *testing.T) {

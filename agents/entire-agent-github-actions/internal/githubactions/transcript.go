@@ -366,7 +366,7 @@ func parseEventJSONL(data []byte) ([]sdkMessage, error) {
 		var record map[string]any
 		if err := json.Unmarshal(line, &record); err != nil {
 			unterminatedTail := i == lastContentLine && !bytes.HasSuffix(data, []byte("\n")) && jsonRecordIsIncomplete(line)
-			if unterminatedTail && len(messages) > 0 {
+			if unterminatedTail {
 				return messages, nil
 			}
 			return nil, fmt.Errorf("parse Claude execution JSONL line %d: %w", i+1, err)
