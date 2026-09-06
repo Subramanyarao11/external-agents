@@ -12,7 +12,7 @@ catalog="${PROOFGATE_DATABRICKS_CATALOG:-main}"
 schema="${PROOFGATE_DATABRICKS_SCHEMA:-proofgate_demo}"
 secret_key="${PROOFGATE_GITHUB_SECRET_KEY:-github-token}"
 embedding_model="${PROOFGATE_EMBEDDING_MODEL_ENDPOINT:-databricks-qwen3-embedding-0-6b}"
-explanation_model="${PROOFGATE_EXPLANATION_MODEL_ENDPOINT:-databricks-gpt-5-6-luna}"
+explanation_model="${PROOFGATE_EXPLANATION_MODEL_ENDPOINT:-databricks-gpt-oss-20b}"
 scope="proofgate-github-${target}"
 mode="${1:-all}"
 

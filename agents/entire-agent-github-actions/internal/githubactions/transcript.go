@@ -19,6 +19,7 @@ import (
 
 const (
 	agentName            = "github-actions"
+	messageTypeSystem    = "system"
 	messageTypeUser      = "user"
 	messageTypeAssistant = "assistant"
 )
@@ -406,7 +407,7 @@ func normalizeEventRecord(record map[string]any) (sdkMessage, bool) {
 
 	switch stringValue(record["event"]) {
 	case "session_started":
-		message["type"] = "system"
+		message["type"] = messageTypeSystem
 		message["subtype"] = "init"
 	case "user_prompt":
 		message["type"] = messageTypeUser
@@ -463,7 +464,7 @@ func normalizeEventRecord(record map[string]any) (sdkMessage, bool) {
 		message["subtype"] = "success"
 		message["result"] = record["summary"]
 	case "session_ended":
-		message["type"] = "system"
+		message["type"] = messageTypeSystem
 		message["subtype"] = "session_ended"
 	default:
 		return nil, false
@@ -519,7 +520,7 @@ func normalizeCodexExec(records []sdkMessage) []sdkMessage {
 		switch stringValue(record["type"]) {
 		case "thread.started":
 			normalized = append(normalized, sdkMessage{
-				"type":       "system",
+				"type":       messageTypeSystem,
 				"subtype":    "init",
 				"session_id": stringValue(record["thread_id"]),
 			})
@@ -565,7 +566,7 @@ func normalizeCodexRollout(records []sdkMessage) []sdkMessage {
 		switch stringValue(record["type"]) {
 		case "session_meta", "turn_context":
 			normalized = append(normalized, sdkMessage{
-				"type":       "system",
+				"type":       messageTypeSystem,
 				"subtype":    "init",
 				"session_id": firstString(payload, "id", "session_id", "thread_id"),
 				"model":      stringValue(payload["model"]),

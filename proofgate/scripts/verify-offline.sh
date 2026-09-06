@@ -43,7 +43,7 @@ echo "[6/7] Entire Graph contract"
 graph_json="$(entire graph commit HEAD --json --max-seconds 20 --repo "$repository_dir")"
 jq -e '
   (.files | type == "array") and
-  (.warnings | type == "array") and
+  ((.warnings // []) | type == "array") and
   (all(.files[]?; (.path | type == "string") and (.changes | type == "array")))
 ' <<<"$graph_json" >/dev/null
 

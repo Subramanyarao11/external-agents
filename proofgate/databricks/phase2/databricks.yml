@@ -3,6 +3,11 @@ bundle:
   engine: direct
   databricks_cli_version: ">= 1.15.0"
 
+sync:
+  paths:
+    - .
+    - ../../app
+
 variables:
   catalog:
     description: Existing Unity Catalog catalog containing Phase 1 tables
@@ -26,7 +31,7 @@ variables:
     default: databricks-qwen3-embedding-0-6b
   explanation_model_endpoint:
     description: Pay-per-token endpoint used only for non-authoritative explanations
-    default: databricks-gpt-5-6-luna
+    default: databricks-gpt-oss-20b
   refresh_pause_status:
     description: Keep the operational refresh paused in dev; demo enables it
     default: PAUSED
