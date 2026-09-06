@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "ca99e1d9fae6",
+  "session_id": "01a07602-5a13-7933-a5fb-5ae48de98ba1",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T09:22:29.482126Z",
+  "branch": "fix/batch3-live-readiness",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "959b978be1c1",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 81244,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1507712,
+    "output_tokens": 8805,
+    "api_call_count": 27
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T09:22:29.43759Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 21,
+    "human_modified": 14,
+    "human_removed": 0,
+    "total_committed": 21,
+    "total_lines_changed": 44,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 41,
+      "user_lines_removed": 14,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "BUILDATHON.md": 14,
+        "agents/entire-agent-github-actions/internal/githubactions/transcript.go": 5,
+        "proofgate/.env.databricks.local": 12,
+        "proofgate/databricks/databricks.yml": 2,
+        "proofgate/databricks/deploy-demo.sh": 1,
+        "proofgate/databricks/phase2/databricks.yml": 6,
+        "proofgate/scripts/verify-offline.sh": 1
+      },
+      "user_removed_per_file": {
+        "BUILDATHON.md": 5,
+        "agents/entire-agent-github-actions/internal/githubactions/transcript.go": 4,
+        "proofgate/databricks/databricks.yml": 2,
+        "proofgate/databricks/deploy-demo.sh": 1,
+        "proofgate/databricks/phase2/databricks.yml": 1,
+        "proofgate/scripts/verify-offline.sh": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+You are completing a narrow, genuine batch-3 integration merge in /Users/subramanyarao/Desktop/webknot/external-agents on branch fix/batch3-live-readiness. A merge of origin/main into Rohit's origin/baseline/03-final-integrations is already in progress. Preserve the four archived batch-3 commits and both parents.
+
+Existing worktree edits have already resolved BUILDATHON's conflict by combining batch 3 with the verified phase-one Databricks record; preserved the phase-one development schema fix; added messageTypeSystem to satisfy hosted goconst; made verify-offline tolerate an omitted Graph warnings array; added Phase-2 sync.paths so ../../app is within the bundle sync root; and selected the live workspace's available databricks-gpt-oss-20b explanation endpoint.
+
+Do not expose, print, stage, or edit proofgate/.env.databricks.local. It is ignored and obtains a short-lived token from the keychain.
+
+Review the diffs and source. Run an Entire Graph impact analysis for parseSDKMessages and a semantic diff appropriate to the pending merge, verifying Graph warnings against source and tests. Update BUILDATHON.md with a concise, truthful "Batch 3 integration verification" section recording the merge basis, conflict resolution, the pre-fix hosted branch evidence (CI and License passed; Lint failed only on the goconst finding), the fixes, Graph evidence, and successful local verification. Do not claim the live Phase-2 deployment or GitHub approval loop has run.
+
+Run git diff --check; go test/vet/build plus golangci-lint for agents/entire-agent-github-actions; go test/vet/build for proofgate; go test/build for e2e; provider fixture verification; and proofgate/scripts/verify-offline.sh with the already-configured local profile without printing credentials. Also validate proofgate/databricks/phase2 against profile proofgate using the current local environment values and repository Subramanyarao11/external-agents, suppressing sensitive configuration output.
+
+If all pass, stage only the intended tracked merge/fix/documentation changes and commit the pending merge as exactly: fix(batch3): reconcile and validate final integrations. Confirm the commit has an Entire-Checkpoint trailer, the working tree is clean, and do not push or merge anything remotely.

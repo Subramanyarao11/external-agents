@@ -3,7 +3,7 @@
   "checkpoint_id": "ca99e1d9fae6",
   "strategy": "manual-commit",
   "branch": "fix/batch3-live-readiness",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "BUILDATHON.md",
     "agents/entire-agent-github-actions/internal/githubactions/transcript.go",
@@ -19,13 +19,20 @@
       "compact_transcript": "/ca/99e1d9fae6/0/transcript.jsonl",
       "content_hash": "/ca/99e1d9fae6/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/ca/99e1d9fae6/1/metadata.json",
+      "transcript": "/ca/99e1d9fae6/1/full.jsonl",
+      "compact_transcript": "/ca/99e1d9fae6/1/transcript.jsonl",
+      "content_hash": "/ca/99e1d9fae6/1/content_hash.txt",
+      "prompt": "/ca/99e1d9fae6/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 17356,
+    "input_tokens": 98600,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 0,
-    "output_tokens": 16,
-    "api_call_count": 1
+    "cache_read_tokens": 1507712,
+    "output_tokens": 8821,
+    "api_call_count": 28
   }
 }
