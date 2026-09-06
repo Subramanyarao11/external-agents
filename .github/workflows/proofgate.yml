@@ -2,6 +2,7 @@ name: ProofGate
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       candidate_ref:
@@ -10,7 +11,9 @@ on:
         type: string
 
 concurrency:
-  group: proofgate-${{ github.repository }}-${{ inputs.candidate_ref || github.sha }}
+  # One live run per PR; a newer head commit cancels the superseded evaluation.
+  # Manual approval re-runs remain isolated by their exact candidate SHA.
+  group: proofgate-${{ github.repository }}-${{ github.event.pull_request.number || inputs.candidate_ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -24,7 +27,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          ref: ${{ inputs.candidate_ref || github.ref }}
+          # A pull_request ref is a synthetic merge commit. ProofGate must inspect
+          # the contributor's checkpointed head commit instead.
+          ref: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
 
       - name: Fetch Entire checkpoint evidence
         shell: bash
@@ -57,6 +62,7 @@ jobs:
           PROOFGATE_DATABRICKS_SCHEMA: ${{ secrets.PROOFGATE_DATABRICKS_SCHEMA }}
         with:
           repository-id: ${{ github.repository }}
+          commit: ${{ inputs.candidate_ref || github.event.pull_request.head.sha || github.sha }}
           repository-opted-in: "true"
           test-report: proofgate-test-report.json
           denied-prefixes: payments/production,infra/production

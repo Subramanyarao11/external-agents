@@ -82,6 +82,20 @@ default threshold fails only `APPROVAL_REQUIRED`; choose `warn` for a stricter
 gate or `never` for observation mode. The full JSON is still produced before a
 blocking exit so an `if: always()` artifact step can preserve the evidence.
 
+The active workflow is PR-native. It runs when a pull request is opened,
+updated, reopened, or marked ready for review, and evaluates the PR's exact
+head SHA rather than GitHub's synthetic merge commit. This preserves the
+connection between the authored commit and its Entire checkpoint. A new push
+to the same PR cancels the superseded run. The result appears as the stable
+`ProofGate / evaluate` PR check, in the GitHub job summary, and as a retained
+Change Passport artifact. Manual `workflow_dispatch` runs remain available for
+the Control Room's exact-SHA approval roundtrip.
+
+For pull requests from forks, GitHub intentionally withholds repository
+secrets. ProofGate still runs the local deterministic evaluation and explicitly
+marks Databricks as degraded; it never switches to `pull_request_target` or
+executes untrusted fork code with privileged credentials.
+
 ## AI-authored pull requests in GitHub Actions
 
 ProofGate includes two dispatchable authoring workflows:
