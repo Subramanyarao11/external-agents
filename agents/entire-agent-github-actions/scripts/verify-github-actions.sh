@@ -6,6 +6,7 @@ AGENT_SLUG="github-actions"
 PROBE_DIR=""
 EXECUTION_FILE=""
 EVENT_FILE=""
+NORMALIZED_EXECUTION_FILE=""
 RUN_COMMAND=""
 USE_SAMPLE=0
 KEEP=0
@@ -66,13 +67,19 @@ fi
 
 [[ -f "$EXECUTION_FILE" ]] || { printf 'FAIL: execution file not found: %s\n' "$EXECUTION_FILE" >&2; exit 1; }
 [[ -f "$EVENT_FILE" ]] || { printf 'FAIL: event file not found: %s\n' "$EVENT_FILE" >&2; exit 1; }
-jq -e 'type == "array" and length > 0' "$EXECUTION_FILE" >/dev/null
 jq -e 'type == "object"' "$EVENT_FILE" >/dev/null
+NORMALIZED_EXECUTION_FILE="$PROBE_DIR/execution-records.json"
+jq -s '
+  if length == 1 and (.[0] | type) == "array" then .[0]
+  elif length > 0 and all(.[]; type == "object") then .
+  else error("execution file must be a JSON array or JSONL object stream")
+  end
+' "$EXECUTION_FILE" > "$NORMALIZED_EXECUTION_FILE"
 
-SESSION_ID=$(jq -r '[.[] | select(.type == "system" and .subtype == "init") | .session_id // empty][0] // empty' "$EXECUTION_FILE")
+SESSION_ID=$(jq -r '[.[] | select((.type == "system" and .subtype == "init") or .event == "session_started") | .session_id // empty][0] // empty' "$NORMALIZED_EXECUTION_FILE")
 [[ -n "$SESSION_ID" ]] || SESSION_ID="gha-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-probe}"
-MODEL=$(jq -r '[.[] | select(.type == "system" and .subtype == "init") | .model // empty][0] // empty' "$EXECUTION_FILE")
-PROMPT=$(jq -r '[.[] | select(.type == "user") | .message.content[]? | select(.type == "text") | .text][0] // empty' "$EXECUTION_FILE")
+MODEL=$(jq -r '[.[] | .model // empty][0] // empty' "$NORMALIZED_EXECUTION_FILE")
+PROMPT=$(jq -r '[.[] | if .event == "user_prompt" then .text else (.message.content[]? | select(.type == "text") | .text) end][0] // empty' "$NORMALIZED_EXECUTION_FILE")
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 write_event() {
@@ -101,11 +108,11 @@ write_event session-end 5
 printf 'Agent: %s (%s)\n' "$AGENT_NAME" "$AGENT_SLUG"
 printf 'Runner environment: %s\n' "${GITHUB_ACTIONS:-false}"
 printf 'Session ID: %s\n' "$SESSION_ID"
-printf 'Execution messages: %s\n' "$(jq 'length' "$EXECUTION_FILE")"
-printf 'User messages: %s\n' "$(jq '[.[] | select(.type == "user")] | length' "$EXECUTION_FILE")"
-printf 'Assistant messages: %s\n' "$(jq '[.[] | select(.type == "assistant")] | length' "$EXECUTION_FILE")"
-printf 'Tool uses: %s\n' "$(jq '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use")] | length' "$EXECUTION_FILE")"
-printf 'Result messages: %s\n' "$(jq '[.[] | select(.type == "result")] | length' "$EXECUTION_FILE")"
+printf 'Execution messages: %s\n' "$(jq 'length' "$NORMALIZED_EXECUTION_FILE")"
+printf 'User messages: %s\n' "$(jq '[.[] | select(.type == "user" or .event == "user_prompt")] | length' "$NORMALIZED_EXECUTION_FILE")"
+printf 'Assistant messages: %s\n' "$(jq '[.[] | select(.type == "assistant" or .event == "agent_response")] | length' "$NORMALIZED_EXECUTION_FILE")"
+printf 'Tool uses: %s\n' "$(jq '[.[] | select(.event == "tool_call"), (.message.content[]? | select(.type == "tool_use"))] | length' "$NORMALIZED_EXECUTION_FILE")"
+printf 'Result messages: %s\n' "$(jq '[.[] | select(.type == "result" or .event == "checkpoint_created")] | length' "$NORMALIZED_EXECUTION_FILE")"
 
 for capture in "$PROBE_DIR"/captures/*.json; do
   printf '\n--- %s ---\n' "$(basename "$capture")"
@@ -117,4 +124,3 @@ if [[ "${GITHUB_ACTIONS:-false}" == "true" && $USE_SAMPLE -eq 0 ]]; then
 else
   printf '\nWARN: structure verified locally; run again inside GitHub Actions for a live verdict\n'
 fi
-

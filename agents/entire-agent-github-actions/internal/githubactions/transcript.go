@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,10 +17,15 @@ import (
 	"github.com/entireio/external-agents/agents/entire-agent-github-actions/internal/protocol"
 )
 
-const agentName = "github-actions"
+const (
+	agentName            = "github-actions"
+	messageTypeUser      = "user"
+	messageTypeAssistant = "assistant"
+)
 
 var fileModificationTools = map[string]struct{}{
 	"edit":         {},
+	"file_changed": {},
 	"multiedit":    {},
 	"notebookedit": {},
 	"replace":      {},
@@ -201,7 +207,7 @@ func (a *Agent) ExtractPrompts(sessionRef string, offset int) ([]string, error) 
 	}
 	prompts := []string{}
 	for _, message := range fromOffset(messages, offset) {
-		if strings.ToLower(stringValue(message["type"])) != "user" {
+		if strings.ToLower(stringValue(message["type"])) != messageTypeUser {
 			continue
 		}
 		if text := messageText(message); text != "" {
@@ -226,7 +232,7 @@ func (a *Agent) ExtractSummary(sessionRef string) (string, bool, error) {
 				return result, true, nil
 			}
 		}
-		if strings.ToLower(stringValue(message["type"])) == "assistant" {
+		if strings.ToLower(stringValue(message["type"])) == messageTypeAssistant {
 			if text := messageText(message); text != "" {
 				return text, true, nil
 			}
@@ -270,7 +276,7 @@ func (a *Agent) CompactTranscript(sessionRef string) (protocol.CompactTranscript
 	var output bytes.Buffer
 	for _, message := range messages {
 		kind := strings.ToLower(stringValue(message["type"]))
-		if kind != "user" && kind != "assistant" {
+		if kind != messageTypeUser && kind != messageTypeAssistant {
 			continue
 		}
 		content := compactContent(message)
@@ -305,21 +311,25 @@ func readSDKMessages(path string) ([]sdkMessage, error) {
 }
 
 func parseSDKMessages(data []byte) ([]sdkMessage, error) {
-	data = bytes.TrimSpace(data)
-	if len(data) == 0 {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
 		return []sdkMessage{}, nil
 	}
-	if data[0] == '[' {
+	if trimmed[0] == '[' {
 		var messages []sdkMessage
-		if err := json.Unmarshal(data, &messages); err != nil {
+		if err := json.Unmarshal(trimmed, &messages); err != nil {
 			return nil, fmt.Errorf("parse Claude execution array: %w", err)
 		}
 		return messages, nil
 	}
 	var envelope map[string]any
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return nil, fmt.Errorf("parse Claude execution object: %w", err)
+	if err := json.Unmarshal(trimmed, &envelope); err == nil {
+		return messagesFromObject(envelope), nil
 	}
+	return parseEventJSONL(data)
+}
+
+func messagesFromObject(envelope map[string]any) []sdkMessage {
 	if rawMessages, ok := envelope["messages"].([]any); ok {
 		messages := make([]sdkMessage, 0, len(rawMessages))
 		for _, raw := range rawMessages {
@@ -327,12 +337,145 @@ func parseSDKMessages(data []byte) ([]sdkMessage, error) {
 				messages = append(messages, sdkMessage(message))
 			}
 		}
-		return messages, nil
+		return messages
+	}
+	if stringValue(envelope["event"]) != "" {
+		if message, ok := normalizeEventRecord(envelope); ok {
+			return []sdkMessage{message}
+		}
+		return []sdkMessage{}
 	}
 	if len(envelope) == 0 || stringValue(envelope["type"]) == "" {
-		return []sdkMessage{}, nil
+		return []sdkMessage{}
 	}
-	return []sdkMessage{sdkMessage(envelope)}, nil
+	return []sdkMessage{sdkMessage(envelope)}
+}
+
+func parseEventJSONL(data []byte) ([]sdkMessage, error) {
+	lines := bytes.Split(data, []byte("\n"))
+	lastContentLine := -1
+	for i := len(lines) - 1; i >= 0; i-- {
+		if len(bytes.TrimSpace(lines[i])) != 0 {
+			lastContentLine = i
+			break
+		}
+	}
+
+	messages := make([]sdkMessage, 0, len(lines))
+	for i, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var record map[string]any
+		if err := json.Unmarshal(line, &record); err != nil {
+			unterminatedTail := i == lastContentLine && !bytes.HasSuffix(data, []byte("\n")) && jsonRecordIsIncomplete(line)
+			if unterminatedTail {
+				return messages, nil
+			}
+			return nil, fmt.Errorf("parse Claude execution JSONL line %d: %w", i+1, err)
+		}
+		if stringValue(record["event"]) != "" {
+			if message, ok := normalizeEventRecord(record); ok {
+				messages = append(messages, message)
+			}
+			continue
+		}
+		if stringValue(record["type"]) != "" {
+			messages = append(messages, sdkMessage(record))
+		}
+	}
+	return messages, nil
+}
+
+func jsonRecordIsIncomplete(data []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	var value any
+	return errors.Is(decoder.Decode(&value), io.ErrUnexpectedEOF)
+}
+
+func normalizeEventRecord(record map[string]any) (sdkMessage, bool) {
+	message := make(sdkMessage, len(record)+3)
+	for key, value := range record {
+		message[key] = value
+	}
+
+	switch stringValue(record["event"]) {
+	case "session_started":
+		message["type"] = "system"
+		message["subtype"] = "init"
+	case "user_prompt":
+		message["type"] = messageTypeUser
+		message["message"] = textMessage(messageTypeUser, stringValue(record["text"]))
+	case "agent_response":
+		message["type"] = messageTypeAssistant
+		message["message"] = textMessage(messageTypeAssistant, stringValue(record["text"]))
+	case "tool_call":
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
+			"type":  "tool_use",
+			"id":    record["call_id"],
+			"name":  record["tool"],
+			"input": record["input"],
+		})
+	case "tool_result":
+		message["type"] = messageTypeUser
+		message["message"] = contentMessage(messageTypeUser, map[string]any{
+			"type":        "tool_result",
+			"tool_use_id": record["call_id"],
+			"content":     record["output"],
+		})
+	case "file_read":
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
+			"type": "tool_use",
+			"name": "file_read",
+			"input": map[string]any{
+				"file_path": record["path"],
+				"lines":     record["lines"],
+			},
+		})
+	case "file_changed":
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
+			"type": "tool_use",
+			"name": "file_changed",
+			"input": map[string]any{
+				"file_path":     record["path"],
+				"change":        record["change"],
+				"summary":       record["summary"],
+				"lines_added":   record["lines_added"],
+				"lines_removed": record["lines_removed"],
+			},
+		})
+	case "usage":
+		message["type"] = "usage"
+		message["usage"] = map[string]any{
+			"input_tokens":  record["input_tokens"],
+			"output_tokens": record["output_tokens"],
+		}
+	case "checkpoint_created":
+		message["type"] = "result"
+		message["subtype"] = "success"
+		message["result"] = record["summary"]
+	case "session_ended":
+		message["type"] = "system"
+		message["subtype"] = "session_ended"
+	default:
+		return nil, false
+	}
+	return message, true
+}
+
+func textMessage(role, text string) map[string]any {
+	return contentMessage(role, map[string]any{"type": "text", "text": text})
+}
+
+func contentMessage(role string, content map[string]any) map[string]any {
+	return map[string]any{
+		"role":    role,
+		"content": []any{content},
+	}
 }
 
 func fromOffset(messages []sdkMessage, offset int) []sdkMessage {

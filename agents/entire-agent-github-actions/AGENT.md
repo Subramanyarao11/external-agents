@@ -97,10 +97,13 @@ ends. Resuming is workflow-specific rather than automatic.
 
 ## Transcript
 
-Anthropic's action writes `claude-execution-output.json` under `RUNNER_TEMP`
-and exposes its path as `execution_file`. The file is a JSON array of Agent SDK
-messages. Official source confirms that messages are collected before log
-sanitization and written to the file even when `show_full_output` is false.
+The integrated action writes its execution output under `RUNNER_TEMP` and
+exposes the path as `execution_file`. Existing runs use a JSON array of Agent
+SDK messages; the Noon Curveball release uses one lifecycle/transcript event
+per JSONL record. Both formats enter one canonical message normalizer before
+file, prompt, summary, token, model, position, or compact analysis. Valid
+unknown JSONL events are ignored, and an incomplete final JSONL record retains
+all preceding complete evidence while the original native bytes remain intact.
 
 Documented message shapes:
 

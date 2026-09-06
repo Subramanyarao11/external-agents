@@ -60,7 +60,8 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - `entire status` reports that Claude Code and OpenCode hooks are out of date; Codex is the build agent used for this kickoff session.
 - `entire status` reported that session tracking diverged from `HEAD` immediately after the intentional history merge; after the documentation commits and mirrored push, final status no longer reported that warning. The import ancestry is intact.
 - Batch 1 has one archived whitespace defect: `git diff --check main..HEAD` reports a new blank line at EOF in `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`.
-- The shared `external-agents-tests` compliance runner is not installed on `PATH`, so local protocol compliance remains blocked pending that external test binary or CI.
+- The repository-declared `external-agents-tests` runner is installed through mise, and the shared compliance suite passes every applicable hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter are skipped.
+- The hosted curveball lint issue was remediated with localized, behavior-preserving changes; the pinned local `golangci-lint` gate and shared compliance suite pass. A hosted rerun is not claimed here.
 - The GitHub Actions e2e adapter deliberately has no hosted `RunPrompt` implementation, causing five tagged lifecycle scenarios to fail locally.
 - Databricks and Control Room behavior may depend on credentials or external infrastructure and must not be described as live until demonstrated.
 - Exact GitHub handles for Daksh and Rohit are pending.
@@ -82,7 +83,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - Imported batch 1: original commits `7e106ff7986e9e40b6c00c20786b7c58c9567c7d` through `6d1396dbcdf0c2d28fdcaa055a14c6d2128eb26f`, merged by `14a4880d55e968b9f47d09d7fdc27a5da5d21561`.
 - Entire coverage: kickoff setup, the baseline-import decision and verification, all genuine work after import, curveball work, and final verification. Entire did not capture the archived baseline's original development.
 - Importer: Subramanya.
-- Batch 1 pull request: `https://github.com/Subramanyarao11/external-agents/pull/2` (open, non-draft, not merged).
+- Batch 1 pull request: `https://github.com/Subramanyarao11/external-agents/pull/2` (merged into `main` at `2026-09-06T06:25:31Z`).
 
 `COMMIT_MANIFEST.md` has the correct SHA prefixes and order, but its Subject column contains human-friendly descriptive labels rather than the literal Git subjects. The raw commit objects, `git log`, and patch filenames agree on the original subjects. This wording defect is disclosed here; no archived commit was rewritten to match the labels.
 
@@ -90,7 +91,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 
 | Batch | Original commits | Planned branch | Scope from descriptive manifest labels | Status |
 |---:|---|---|---|---|
-| 1 of 3 | `7e106ff..6d1396d` (commits 1-5 after base `c47a489`) | `baseline/01-foundation` | Sponsor/platform research, contract fixtures, Claude checkpoint evidence, deterministic decision engine, and Databricks evidence pipeline | Imported with no-ff merge `14a4880`; verification recorded below; PR #2 open and unmerged |
+| 1 of 3 | `7e106ff..6d1396d` (commits 1-5 after base `c47a489`) | `baseline/01-foundation` | Sponsor/platform research, contract fixtures, Claude checkpoint evidence, deterministic decision engine, and Databricks evidence pipeline | Imported with no-ff merge `14a4880`; verification recorded below; PR #2 merged at `2026-09-06T06:25:31Z` |
 | 2 of 3 | `3e63e9f..dcb6f5a` (commits 6-10) | To be created after batch 1 review | Control Room/GitHub approvals, Databricks deployment, change passports/Graph metadata, packaged Action/demo setup, and feedback/search stack | Pending batch 1 review |
 | 3 of 3 | `261b8cb..6414daf` (commits 11-14) | To be created after batch 2 review | Review continuity/rollout controls, JUnit evidence, Codex/Cursor capture, and final judging/Graph contracts | Pending batch 2 review |
 
@@ -133,7 +134,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - `go build ./...` in `proofgate`: **PASS**.
 - `go test ./...` in `e2e` without the `e2e` tag: **PASS** for the ordinary package/unit target.
 - `./scripts/verify-github-actions.sh --sample`: **PASS** for the source-derived local structure fixture, with expected warnings that it is not a live GitHub runner verdict.
-- `./scripts/verify-compliance.sh /private/tmp/entire-agent-github-actions-batch1`: **BLOCKED** — `external-agents-tests` is not installed on `PATH`.
+- `GOCACHE=/private/tmp/external-agents-compliance-go-cache go build -o /private/tmp/entire-agent-github-actions-curveball ./cmd/entire-agent-github-actions`, followed by `mise exec -- ./scripts/verify-compliance.sh /private/tmp/entire-agent-github-actions-curveball`: **PASS** for every applicable shared hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter were skipped.
 - Both documented `go run ./cmd/proofgate evaluate` examples: **PASS**, producing `PASS` for `examples/pass.json` and `APPROVAL_REQUIRED` for `examples/approval-required.json` at the documented evaluation time.
 - `go run ./cmd/proofgate export --passport examples/pass.json --now 2026-09-04T12:00:00Z --dry-run`: **PASS**, producing an allowlisted event without network transmission.
 - `E2E_AGENT=github-actions ... go test -tags=e2e -v -count=1 ./...` in `e2e`: **FAIL**. `TestLifecycle_DetectAndEnable` and `TestLifecycle_HooksInstalledAfterEnable` passed; five prompt-dependent cases (`SinglePromptManualCommit`, `MultiplePromptsManualCommit`, `RewindPreCommit`, `RewindAfterCommit`, and `SessionPersistence`) failed because the adapter returns `hosted GitHub Actions lifecycle runner not implemented`; interactive and OMP-only cases skipped.
@@ -141,13 +142,26 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 ## Checkpoints and later evidence
 
 - Kickoff setup commit: `3785c8c481b471023191916b0cdf86aac3e2c693`; protected-main setup merge: `9fa8f33056af0a3c056f7690db577b1a9c12cacc`.
-- Last stable state before curveball: pending.
-- Curveball wording and response: pending; no curveball has been supplied in this record.
-- Pre-change Graph impact analysis: pending for the first risky implementation change.
-- Final semantic Graph diff: pending.
-- Offline verification: batch 1 results are recorded above; unit tests and local deterministic flows pass, while diff-check, external compliance availability, and hosted lifecycle coverage have genuine limitations.
+- Last stable state before curveball: checkpoint `e7d282cc52ef`; `main` merge `afa145d570aa0afd5098c3410d7fd30a3bd6ed4d`; tree `faec0a1933e7c5ad61ace58bdc878e10e5819db8`, independently equal to the tree at baseline tip `11fd1a58800590f89fe0d2ffb7cbab30c9fb49c2`.
+- Noon curveball: the integrated workflow introduced a JSONL transcript/lifecycle record format while existing users retain the original JSON array. Both must work through shared logic; unknown records must not crash; an incomplete trailing JSONL record must yield all complete evidence; malformed complete records remain errors; raw transcript and checkpoint behavior remain compatible.
+- Official fixture normalization: `agents/entire-agent-github-actions/testdata/claude-action-execution-v2.jsonl` preserves all 17 supplied records and values. The only normalization mechanically restored the chat renderer's `\_` display escapes to ordinary underscores.
+- Tests-first checkpoint: `aa7addaf3c1477002679c47112987b6afe58f02f` (`test(github-actions): define curveball transcript contract`). Before implementation, the legacy-array subtest passed and the malformed-complete-record test passed; official JSONL, inserted-unknown, incomplete-tail, and direct capture tests failed at the old single-document parser with `invalid character '{' after top-level value`.
+- Revised design: `parseSDKMessages` is the sole format detector. Legacy arrays/envelopes pass through unchanged; JSONL records are normalized into the existing `sdkMessage` model, after which the existing file, prompt, summary, token, model, position, and compact paths are reused. Recognized `file_changed` records enter the existing modified-file allowlist. Valid unknown events are skipped. Any genuinely unterminated final record yields all messages parsed so far, including an empty partial result when the first record is incomplete. `WriteSession` continues to store the original bytes atomically, and `CaptureStart`/`CaptureFinish` continue to emit `run-start`, `turn-start`, `turn-end`, `run-end` in that order.
+- Independent verifier: `verify-github-actions.sh` now normalizes either an array or an object stream before extracting session/model/prompt/count evidence. The source-derived legacy sample and official 17-record JSONL fixture both pass locally.
+- Final semantic Graph diff: `entire graph diff --base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d --head HEAD --json` reported the expected `parseSDKMessages` change, the JSONL normalization and incomplete-tail helpers, the curveball parser/capture/lifecycle tests, the independent verifier, and documentation. It found no unrelated implementation symbols. Graph reported `claude-action-execution-v2.jsonl` as unsupported because it has no JSONL parser, so the fixture was validated directly as 17 valid JSON records with no remaining `\_` display escapes.
+- Offline verification: curveball contract tests pass; the full GitHub Actions agent module passes and builds; `git diff --check` passes; ProofGate passes after granting its `httptest` loopback listener; untagged e2e passes; focused real-CLI `DetectAndEnable` and `HooksInstalledAfterEnable` lifecycle checks pass for `github-actions`.
+- Remaining verification gaps: the hosted GitHub Actions `RunPrompt` adapter remains unimplemented, so prompt/rewind/session-persistence lifecycle scenarios are not claimed. No credential-dependent hosted Action, Databricks deployment, or Control Room execution was performed.
 - GitHub Action run, blocked PR, approval receipt, successful rerun, Databricks proof, and demo video: pending.
+
+### Noon curveball Graph impact evidence
+
+- Initial locate: `entire graph search --repo . --profile full --query "Support original and new transcript and lifecycle event formats, tolerate unknown events, preserve partial incomplete transcripts, and keep checkpoint behavior compatible"` recorded commit `afa145d`, tree `faec0a1`, and identified transcript sanitization/checkpoint neighbors; source inspection showed the top Grok hit was not the target adapter.
+- Targeted locate: `entire graph search --repo . --profile full --query "GitHub Actions external agent Claude JSONL transcript parser lifecycle event handler session summary protocol response checkpoint writer and tests"` found the GitHub Actions transcript contract and capture paths. Results were verified against `transcript.go`, `capture.go`, `hooks.go`, protocol handlers, tests, and the independent shell verifier.
+- Relationship analysis: `entire graph impact --repo . --symbol parseSDKMessages` reported four direct and five transitive callers: `CaptureFinish`, `executionModel`, `CalculateTokens`, `readSDKMessages`, `GetTranscriptPosition`, `ExtractModifiedFiles`, `ExtractPrompts`, `ExtractSummary`, and `CompactTranscript`. This established the parser as the one shared normalization seam.
+- Lifecycle impact: `entire graph impact --repo . --symbol Agent.ParseHook --file agents/entire-agent-github-actions/internal/githubactions/hooks.go --line 21 --format json` identified its session-path and metadata dependencies. Source verification additionally confirmed the process boundary through `HandleParseHook` and `main.go`, which Graph did not represent as a Go caller.
+- Capture/checkpoint impact: `entire graph impact --repo . --symbol Agent.CaptureFinish --file agents/entire-agent-github-actions/internal/githubactions/capture.go --line 66 --format json` reported 17 callees, including parsing, raw `WriteSession`, modified files, summary, tokens/model, session resolution, and lifecycle dispatch. Source verification confirmed the adapter writes the native session and invokes `entire hooks`; Entire CLI owns shadow and persistent checkpoint writes.
+- Graph completeness: Go analysis had no parse failures. Two Databricks SQL parse warnings were unrelated to this Go adapter change and were verified not to affect the impact result.
 
 ## Known limitations
 
-This record documents the verified history and local behavior of baseline batch 1. It does not claim that the imported work was newly authored during this event, that the archived whitespace defect is fixed, that shared protocol compliance ran locally, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated.
+This record documents the verified history and local behavior of baseline batch 1. It does not claim that the imported work was newly authored during this event, that the archived whitespace defect is fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above.
