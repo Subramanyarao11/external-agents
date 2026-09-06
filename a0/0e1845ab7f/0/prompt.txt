@@ -1,0 +1,1 @@
+Create exactly one file at payments/production/proofgate-approved-demo.txt. Its only line must be: ProofGate exact-SHA approval demo. Do not modify any other file. Do not commit or push. After editing, verify the file content and stop.

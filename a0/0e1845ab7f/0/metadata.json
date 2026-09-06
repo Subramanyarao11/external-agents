@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "a00e1845ab7f",
+  "session_id": "01a07642-36e4-7283-b7c1-55a609d01cd8",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T10:28:06.738079Z",
+  "branch": "demo/checkpointed-approval",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "payments/production/proofgate-approved-demo.txt"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "0a29490716ae",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 13338,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 62208,
+    "output_tokens": 374,
+    "api_call_count": 4
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T10:28:06.725458Z",
+    "agent_lines": 1,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1,
+    "total_lines_changed": 1,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 12,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "proofgate/.env.databricks.local": 12
+      }
+    }
+  ]
+}

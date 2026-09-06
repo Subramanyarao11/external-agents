@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "a00e1845ab7f",
+  "strategy": "manual-commit",
+  "branch": "demo/checkpointed-approval",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "payments/production/proofgate-approved-demo.txt"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a0/0e1845ab7f/0/metadata.json",
+      "transcript": "/a0/0e1845ab7f/0/full.jsonl",
+      "compact_transcript": "/a0/0e1845ab7f/0/transcript.jsonl",
+      "content_hash": "/a0/0e1845ab7f/0/content_hash.txt",
+      "prompt": "/a0/0e1845ab7f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13338,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 62208,
+    "output_tokens": 374,
+    "api_call_count": 4
+  }
+}
