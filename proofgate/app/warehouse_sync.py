@@ -87,7 +87,10 @@ class WarehouseSynchronizer:
             response = self.workspace.statement_execution.get_statement(response.statement_id)
         state = self._state(response)
         if state != "SUCCEEDED":
-            raise RuntimeError(f"warehouse statement did not succeed: {state}")
+            status = getattr(response, "status", None)
+            error = getattr(status, "error", None)
+            detail = getattr(error, "message", None) or str(error or "no error detail")
+            raise RuntimeError(f"warehouse statement did not succeed: {state}: {detail}")
         if not response.manifest or not response.manifest.schema or not response.result:
             return []
         names = [column.name for column in response.manifest.schema.columns or []]

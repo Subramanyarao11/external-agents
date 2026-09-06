@@ -146,7 +146,11 @@ class ProofGateHandler(SimpleHTTPRequestHandler):
                 try:
                     result = self.synchronizer.sync(self.store)
                 except Exception as error:  # SQL SDK exposes provider-specific errors
-                    self.log_error("warehouse sync failed: %s", type(error).__name__)
+                    self.log_error(
+                        "warehouse sync failed: %s: %s",
+                        type(error).__name__,
+                        str(error),
+                    )
                     self._json(
                         HTTPStatus.BAD_GATEWAY,
                         {"error": "warehouse_sync_failed", "message": "The governed evidence import failed."},
