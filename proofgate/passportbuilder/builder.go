@@ -54,6 +54,7 @@ type Request struct {
 	Tests              TestReport
 	SensitivePrefixes  []string
 	DeniedPrefixes     []string
+	GraphMode          string
 }
 
 type TestReport struct {
@@ -153,6 +154,10 @@ func (builder Builder) Build(ctx context.Context, request Request) (contracts.Ch
 		return contracts.ChangePassport{}, fmt.Errorf("read change size: %w", err)
 	}
 	changedLines := parseChangedLines(numstatOutput)
+	impact, err := builder.buildImpact(ctx, directory, commitSHA, changedFiles, request.GraphMode)
+	if err != nil {
+		return contracts.ChangePassport{}, err
+	}
 
 	dateOutput, err := builder.Runner.Run(ctx, directory, "git", "show", "-s", "--format=%cI", commitSHA)
 	if err != nil {
@@ -215,8 +220,12 @@ func (builder Builder) Build(ctx context.Context, request Request) (contracts.Ch
 		Impact: contracts.ImpactEvidence{
 			ChangedFiles:        changedFiles,
 			ChangedLineCount:    changedLines,
-			ImpactedEntities:    impactedEntities(changedFiles),
+			ImpactedEntities:    impact.Entities,
 			DependencyDepth:     dependencyDepth(changedFiles),
+			MaxDependentCount:   impact.MaxDependentCount,
+			AnalysisSource:      impact.Source,
+			AnalysisComplete:    impact.Complete,
+			AnalysisWarnings:    impact.Warnings,
 			SensitiveComponents: matchingPrefixes(changedFiles, sensitivePrefixes),
 			DeniedComponents:    matchingPrefixes(changedFiles, request.DeniedPrefixes),
 		},

@@ -48,6 +48,14 @@ type HistoryQuery struct {
 	SensitiveComponents []string
 }
 
+type ReviewDecision struct {
+	Available       bool      `json:"available"`
+	DecisionEventID string    `json:"decision_event_id,omitempty"`
+	Action          string    `json:"action,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OccurredAt      time.Time `json:"occurred_at,omitempty"`
+}
+
 type statementParameter struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
@@ -314,6 +322,66 @@ CROSS JOIN component_agg`,
 	}, nil
 }
 
+func (client *Client) LookupReview(ctx context.Context, eventID string) (ReviewDecision, error) {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return ReviewDecision{}, errors.New("review event id is required")
+	}
+	request := statementRequest{
+		WarehouseID: client.config.WarehouseID,
+		Catalog:     client.config.Catalog,
+		Schema:      client.config.Schema,
+		Statement: `SELECT
+  decision_event_id,
+  action,
+  actor_id,
+  CAST(occurred_at AS STRING) AS occurred_at
+FROM policy_decision_events
+WHERE gate_event_id = :gate_event_id
+ORDER BY occurred_at DESC
+LIMIT 1`,
+		WaitTimeout: "50s",
+		Disposition: "INLINE",
+		Format:      "JSON_ARRAY",
+		RowLimit:    1,
+		ByteLimit:   4 << 10,
+		Parameters: []statementParameter{
+			{Name: "gate_event_id", Value: eventID, Type: "STRING"},
+		},
+	}
+	response, err := client.runStatement(ctx, request)
+	if err != nil {
+		return ReviewDecision{}, err
+	}
+	if len(response.Result.DataArray) == 0 {
+		return ReviewDecision{Available: false}, nil
+	}
+	if len(response.Result.DataArray) != 1 || len(response.Result.DataArray[0]) != 4 {
+		return ReviewDecision{}, errors.New("review query returned an invalid shape")
+	}
+	row := response.Result.DataArray[0]
+	for index, cell := range row {
+		if cell == nil || strings.TrimSpace(*cell) == "" {
+			return ReviewDecision{}, fmt.Errorf("review column %d is empty", index)
+		}
+	}
+	action := strings.ToUpper(strings.TrimSpace(*row[1]))
+	if action != "APPROVE" && action != "REJECT" {
+		return ReviewDecision{}, fmt.Errorf("review action %q is invalid", action)
+	}
+	occurredAt, err := parseDatabricksTimestamp(*row[3])
+	if err != nil {
+		return ReviewDecision{}, fmt.Errorf("parse review occurred_at: %w", err)
+	}
+	return ReviewDecision{
+		Available:       true,
+		DecisionEventID: strings.TrimSpace(*row[0]),
+		Action:          action,
+		ActorID:         strings.TrimSpace(*row[2]),
+		OccurredAt:      occurredAt,
+	}, nil
+}
+
 func (client *Client) runStatement(ctx context.Context, request statementRequest) (statementResponse, error) {
 	response, err := client.execute(ctx, http.MethodPost, "/api/2.0/sql/statements", request)
 	if err != nil {
@@ -366,6 +434,22 @@ func parseFloatCell(cell *string, name string) (float64, error) {
 		return 0, fmt.Errorf("history %s cannot be negative", name)
 	}
 	return value, nil
+}
+
+func parseDatabricksTimestamp(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	formats := []string{
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+	for _, format := range formats {
+		if parsed, err := time.Parse(format, value); err == nil {
+			return parsed.UTC(), nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported timestamp %q", value)
 }
 
 func (client *Client) execute(ctx context.Context, method, path string, body any) (statementResponse, error) {

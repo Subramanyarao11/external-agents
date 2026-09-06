@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,11 @@ func TestEvaluateAcceptanceScenarios(t *testing.T) {
 			p.History.NormalImpactCountP95 = 2
 			p.Impact.ChangedFiles = []string{"a.go", "b.go", "c.go"}
 			p.Impact.ImpactedEntities = []string{"A", "B", "C"}
+		}},
+		{name: "graph dependent fanout warns", decision: DecisionWarn, mutate: func(p *contracts.ChangePassport) {
+			p.Impact.AnalysisSource = "entire-graph-v0.4.0"
+			p.Impact.AnalysisComplete = true
+			p.Impact.MaxDependentCount = 18
 		}},
 		{name: "similar failures require approval", decision: DecisionApprovalRequired, mutate: func(p *contracts.ChangePassport) {
 			p.History.Available = true
@@ -75,6 +81,20 @@ func TestEvaluateIsDeterministic(t *testing.T) {
 	}
 	if first.Score != second.Score || first.Decision != second.Decision || first.PassportFingerprint != second.PassportFingerprint {
 		t.Fatalf("non-deterministic result: %+v vs %+v", first, second)
+	}
+}
+
+func TestEvaluateLabelsPartialGraphCoverage(t *testing.T) {
+	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	passport := safePassport(now)
+	passport.Impact.AnalysisSource = "entire-graph-v0.4.0"
+	passport.Impact.AnalysisComplete = false
+	result, err := Evaluate(passport, DefaultPolicy(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(result.Uncertainties, " "), "partial coverage") {
+		t.Fatalf("expected partial Graph uncertainty, got %v", result.Uncertainties)
 	}
 }
 

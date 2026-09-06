@@ -181,9 +181,9 @@ func (a *Agent) ExtractModifiedFiles(path string, offset int) ([]string, int, er
 			}
 			input, _ := block["input"].(map[string]any)
 			for _, key := range filePathKeys {
-				path := strings.TrimSpace(stringValue(input[key]))
+				path := safeEvidencePath(stringValue(input[key]))
 				if path != "" {
-					seen[filepath.Clean(path)] = struct{}{}
+					seen[path] = struct{}{}
 					break
 				}
 			}
@@ -318,15 +318,19 @@ func parseSDKMessages(data []byte) ([]sdkMessage, error) {
 	if trimmed[0] == '[' {
 		var messages []sdkMessage
 		if err := json.Unmarshal(trimmed, &messages); err != nil {
-			return nil, fmt.Errorf("parse Claude execution array: %w", err)
+			return nil, fmt.Errorf("parse execution array: %w", err)
 		}
-		return messages, nil
+		return normalizeExecutionRecords(messages), nil
 	}
 	var envelope map[string]any
 	if err := json.Unmarshal(trimmed, &envelope); err == nil {
-		return messagesFromObject(envelope), nil
+		return normalizeExecutionRecords(messagesFromObject(envelope)), nil
 	}
-	return parseEventJSONL(data)
+	records, err := parseEventJSONL(data)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeExecutionRecords(records), nil
 }
 
 func messagesFromObject(envelope map[string]any) []sdkMessage {
@@ -478,6 +482,317 @@ func contentMessage(role string, content map[string]any) map[string]any {
 	}
 }
 
+func normalizeExecutionRecords(records []sdkMessage) []sdkMessage {
+	if looksLikeCodexRollout(records) {
+		return normalizeCodexRollout(records)
+	}
+	if looksLikeCodexExec(records) {
+		return normalizeCodexExec(records)
+	}
+	return normalizeCursorRecords(records)
+}
+
+func looksLikeCodexExec(records []sdkMessage) bool {
+	for _, record := range records {
+		switch stringValue(record["type"]) {
+		case "thread.started", "turn.started", "turn.completed", "turn.failed", "item.started", "item.completed", "item.updated":
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeCodexRollout(records []sdkMessage) bool {
+	for _, record := range records {
+		switch stringValue(record["type"]) {
+		case "session_meta", "turn_context", "response_item", "event_msg", "compacted":
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeCodexExec(records []sdkMessage) []sdkMessage {
+	normalized := make([]sdkMessage, 0, len(records))
+	lastAssistant := ""
+	for _, record := range records {
+		switch stringValue(record["type"]) {
+		case "thread.started":
+			normalized = append(normalized, sdkMessage{
+				"type":       "system",
+				"subtype":    "init",
+				"session_id": stringValue(record["thread_id"]),
+			})
+		case "turn.started":
+			normalized = append(normalized, record)
+		case "item.started", "item.completed", "item.updated":
+			item, _ := asMap(record["item"])
+			message := normalizeCodexItem(item)
+			if message == nil {
+				normalized = append(normalized, record)
+				continue
+			}
+			if text := messageText(message); text != "" {
+				lastAssistant = text
+			}
+			normalized = append(normalized, message)
+		case "turn.completed":
+			normalized = append(normalized, sdkMessage{
+				"type":    "result",
+				"subtype": "success",
+				"result":  lastAssistant,
+				"usage":   record["usage"],
+			})
+		case "turn.failed", "error":
+			normalized = append(normalized, sdkMessage{
+				"type":     "result",
+				"subtype":  "error",
+				"is_error": true,
+				"result":   codexErrorText(record),
+			})
+		default:
+			normalized = append(normalized, record)
+		}
+	}
+	return normalized
+}
+
+func normalizeCodexRollout(records []sdkMessage) []sdkMessage {
+	normalized := make([]sdkMessage, 0, len(records))
+	var latestUsage map[string]any
+	for _, record := range records {
+		payload, _ := asMap(record["payload"])
+		switch stringValue(record["type"]) {
+		case "session_meta", "turn_context":
+			normalized = append(normalized, sdkMessage{
+				"type":       "system",
+				"subtype":    "init",
+				"session_id": firstString(payload, "id", "session_id", "thread_id"),
+				"model":      stringValue(payload["model"]),
+			})
+		case "response_item":
+			if stringValue(payload["type"]) != "message" {
+				continue
+			}
+			role := strings.ToLower(stringValue(payload["role"]))
+			if role != "user" && role != "assistant" {
+				continue
+			}
+			normalized = append(normalized, sdkMessage{
+				"type":    role,
+				"message": map[string]any{"role": role, "content": normalizeTextBlocks(payload["content"])},
+			})
+		case "event_msg":
+			switch stringValue(payload["type"]) {
+			case "item_completed":
+				item, _ := asMap(payload["item"])
+				if message := normalizeCodexItem(item); message != nil {
+					normalized = append(normalized, message)
+				}
+			case "patch_apply_end":
+				// Persisted Codex rollouts report successful apply_patch file
+				// changes here rather than as an item_completed/file_change pair.
+				// Reuse the same allowlisted path-only representation and never
+				// retain patch bodies, stdout or stderr.
+				if stringValue(payload["status"]) == "completed" || boolValue(payload["success"]) {
+					if blocks := fileChangeBlocks(payload["changes"]); len(blocks) != 0 {
+						normalized = append(normalized, sdkMessage{"type": "assistant", "content": blocks})
+					}
+				}
+			case "token_count":
+				info, _ := asMap(payload["info"])
+				usage, _ := asMap(info["total_token_usage"])
+				if len(usage) != 0 {
+					latestUsage = usage
+				}
+			case "task_complete":
+				normalized = append(normalized, sdkMessage{
+					"type":    "result",
+					"subtype": "success",
+					"result":  stringValue(payload["last_agent_message"]),
+				})
+			}
+		}
+	}
+	if len(latestUsage) != 0 {
+		normalized = append(normalized, sdkMessage{"type": "usage", "usage": latestUsage})
+	}
+	return normalized
+}
+
+func normalizeCodexItem(item map[string]any) sdkMessage {
+	switch stringValue(item["type"]) {
+	case "agent_message":
+		text := strings.TrimSpace(stringValue(item["text"]))
+		if text == "" {
+			return nil
+		}
+		return sdkMessage{"type": "assistant", "content": []any{map[string]any{"type": "text", "text": text}}}
+	case "file_change":
+		blocks := fileChangeBlocks(item["changes"])
+		if len(blocks) == 0 {
+			return nil
+		}
+		return sdkMessage{"type": "assistant", "content": blocks}
+	case "command_execution":
+		command := stringValue(item["command"])
+		if command == "" {
+			if parts, ok := item["command"].([]any); ok {
+				values := make([]string, 0, len(parts))
+				for _, part := range parts {
+					if value := stringValue(part); value != "" {
+						values = append(values, value)
+					}
+				}
+				command = strings.Join(values, " ")
+			}
+		}
+		return sdkMessage{"type": "assistant", "content": []any{map[string]any{
+			"type": "tool_use", "name": "Shell", "input": map[string]any{"command": command},
+		}}}
+	default:
+		return nil
+	}
+}
+
+func fileChangeBlocks(changes any) []any {
+	paths := []string{}
+	switch typed := changes.(type) {
+	case []any:
+		for _, raw := range typed {
+			change, _ := asMap(raw)
+			if path := safeEvidencePath(firstString(change, "path", "file_path", "filePath")); path != "" {
+				paths = append(paths, path)
+			}
+		}
+	case map[string]any:
+		for path := range typed {
+			if path := safeEvidencePath(path); path != "" {
+				paths = append(paths, path)
+			}
+		}
+	}
+	sort.Strings(paths)
+	blocks := make([]any, 0, len(paths))
+	for _, path := range paths {
+		blocks = append(blocks, map[string]any{
+			"type": "tool_use", "name": "Write", "input": map[string]any{"file_path": path},
+		})
+	}
+	return blocks
+}
+
+func normalizeCursorRecords(records []sdkMessage) []sdkMessage {
+	normalized := make([]sdkMessage, 0, len(records))
+	for _, record := range records {
+		if stringValue(record["type"]) != "tool_call" {
+			normalized = append(normalized, record)
+			continue
+		}
+		toolCall, _ := asMap(record["tool_call"])
+		name, details := firstMapEntry(toolCall)
+		args, _ := asMap(details["args"])
+		blockType := "tool_use"
+		block := map[string]any{
+			"type":  blockType,
+			"id":    stringValue(record["call_id"]),
+			"name":  normalizeCursorToolName(name),
+			"input": args,
+		}
+		if stringValue(record["subtype"]) != "started" {
+			block = map[string]any{
+				"type":        "tool_result",
+				"tool_use_id": stringValue(record["call_id"]),
+			}
+		}
+		normalized = append(normalized, sdkMessage{"type": "assistant", "content": []any{block}})
+	}
+	return normalized
+}
+
+func normalizeCursorToolName(name string) string {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.Contains(lower, "notebook"):
+		return "NotebookEdit"
+	case strings.Contains(lower, "write"):
+		return "Write"
+	case strings.Contains(lower, "edit"), strings.Contains(lower, "replace"):
+		return "Edit"
+	case strings.Contains(lower, "shell"), strings.Contains(lower, "command"):
+		return "Shell"
+	case strings.Contains(lower, "read"):
+		return "Read"
+	default:
+		return name
+	}
+}
+
+func normalizeTextBlocks(value any) []any {
+	blocks, _ := value.([]any)
+	normalized := make([]any, 0, len(blocks))
+	for _, raw := range blocks {
+		block, ok := asMap(raw)
+		if !ok {
+			continue
+		}
+		if text := strings.TrimSpace(stringValue(block["text"])); text != "" {
+			normalized = append(normalized, map[string]any{"type": "text", "text": text})
+		}
+	}
+	return normalized
+}
+
+func codexErrorText(record sdkMessage) string {
+	if message := strings.TrimSpace(stringValue(record["message"])); message != "" {
+		return message
+	}
+	errorValue, _ := asMap(record["error"])
+	return strings.TrimSpace(stringValue(errorValue["message"]))
+}
+
+func firstString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(stringValue(values[key])); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func firstMapEntry(values map[string]any) (string, map[string]any) {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if value, ok := asMap(values[key]); ok {
+			return key, value
+		}
+	}
+	return "Unknown", map[string]any{}
+}
+
+func safeEvidencePath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	cleaned := filepath.Clean(value)
+	if filepath.IsAbs(cleaned) {
+		relative, err := filepath.Rel(protocol.RepoRoot(), cleaned)
+		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return ""
+		}
+		cleaned = relative
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return cleaned
+}
+
 func fromOffset(messages []sdkMessage, offset int) []sdkMessage {
 	if offset < 0 {
 		offset = 0
@@ -557,8 +872,8 @@ func compactContent(message sdkMessage) []any {
 func addUsage(total *protocol.TokenUsageResponse, usage map[string]any) {
 	input := intValue(firstValue(usage, "input_tokens", "inputTokens"))
 	output := intValue(firstValue(usage, "output_tokens", "outputTokens"))
-	cacheCreation := intValue(firstValue(usage, "cache_creation_input_tokens", "cacheCreationInputTokens", "cache_creation_tokens"))
-	cacheRead := intValue(firstValue(usage, "cache_read_input_tokens", "cacheReadInputTokens", "cache_read_tokens"))
+	cacheCreation := intValue(firstValue(usage, "cache_creation_input_tokens", "cacheCreationInputTokens", "cache_creation_tokens", "cache_write_input_tokens"))
+	cacheRead := intValue(firstValue(usage, "cache_read_input_tokens", "cacheReadInputTokens", "cache_read_tokens", "cached_input_tokens"))
 	if input == 0 && output == 0 && cacheCreation == 0 && cacheRead == 0 {
 		return
 	}
@@ -586,6 +901,11 @@ func asMap(value any) (map[string]any, bool) {
 func stringValue(value any) string {
 	text, _ := value.(string)
 	return text
+}
+
+func boolValue(value any) bool {
+	result, _ := value.(bool)
+	return result
 }
 
 func intValue(value any) int {

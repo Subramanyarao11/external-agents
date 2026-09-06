@@ -8,14 +8,37 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
 from app import create_server  # noqa: E402
+from decision_sync import DECISION_MERGE, DecisionPublisher  # noqa: E402
+from github_dispatch import GitHubWorkflowDispatcher  # noqa: E402
 from store import ReviewConflictError, SQLiteStore, ValidationError  # noqa: E402
 from warehouse_sync import WarehouseSynchronizer  # noqa: E402
+
+
+class RecordingDecisionPublisher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[dict, dict]] = []
+
+    def publish(self, decision: dict, gate: dict) -> dict[str, str]:
+        self.calls.append((decision, gate))
+        return {"status": "SYNCED", "statement_id": "statement-review-1"}
+
+
+class RecordingWorkflowDispatcher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[dict, dict]] = []
+
+    def dispatch(self, decision: dict, gate: dict) -> dict[str, str]:
+        self.calls.append((decision, gate))
+        if decision["action"] != "APPROVE":
+            return {"status": "SKIPPED_NOT_APPROVED"}
+        return {"status": "DISPATCHED", "candidate_ref": gate["commit_sha"]}
 
 
 class StoreTests(unittest.TestCase):
@@ -30,6 +53,10 @@ class StoreTests(unittest.TestCase):
     def test_seed_is_repeatable(self) -> None:
         self.assertEqual(self.store.seed_demo()["inserted"], 0)
         self.assertEqual(len(self.store.list_gates()), 4)
+        graph_gate = self.store.get_gate("gate-checkout-retry")
+        self.assertEqual(graph_gate["impact_analysis_source"], "entire-graph-v0.4.0")
+        self.assertTrue(graph_gate["impact_analysis_complete"])
+        self.assertEqual(graph_gate["max_dependent_count"], 24)
 
     def test_decision_updates_review_without_rewriting_policy_verdict(self) -> None:
         before = self.store.get_gate("gate-checkout-retry")
@@ -134,6 +161,9 @@ class StoreTests(unittest.TestCase):
                 "automated_verdict": "APPROVAL_REQUIRED",
                 "risk_score": "91",
                 "changed_file_count": "4",
+                "impact_analysis_source": "entire-graph-v0.4.0",
+                "impact_analysis_complete": "true",
+                "max_dependent_count": "17",
                 "tests_total": "17",
                 "tests_failed": "1",
                 "provenance_complete": "true",
@@ -143,15 +173,104 @@ class StoreTests(unittest.TestCase):
             }
         )
         self.assertEqual(gate["review_status"], "PENDING")
+        self.assertEqual(gate["max_dependent_count"], 17)
+        self.assertTrue(gate["impact_analysis_complete"])
         self.assertNotIn("raw_prompt", gate)
         self.assertNotIn("source_code", gate)
+
+    def test_decision_publisher_binds_values_instead_of_interpolating(self) -> None:
+        class FakeExecution:
+            def __init__(self) -> None:
+                self.arguments: dict = {}
+
+            def execute_statement(self, **kwargs):
+                self.arguments = kwargs
+                return SimpleNamespace(
+                    statement_id="statement-1",
+                    status=SimpleNamespace(state=SimpleNamespace(value="SUCCEEDED")),
+                )
+
+        execution = FakeExecution()
+        workspace = SimpleNamespace(statement_execution=execution)
+        publisher = DecisionPublisher(
+            "warehouse-1",
+            "main",
+            "proofgate",
+            workspace=workspace,
+            parameter_factory=lambda **kwargs: kwargs,
+        )
+        decision = {
+            "decision_id": "decision-1",
+            "gate_event_id": "gate-'quoted",
+            "action": "APPROVE",
+            "actor_id": "reviewer@example.test",
+            "reason": "I reviewed the bounded evidence.",
+            "previous_version": 1,
+            "occurred_at": "2026-09-04T12:00:00+00:00",
+            "idempotency_key": "review-once",
+        }
+        receipt = publisher.publish(decision, {"checkpoint_id": "checkpoint-1"})
+        self.assertEqual(receipt["status"], "SYNCED")
+        self.assertEqual(execution.arguments["statement"], DECISION_MERGE)
+        self.assertNotIn(decision["gate_event_id"], DECISION_MERGE)
+        parameters = {
+            item["name"]: item["value"] for item in execution.arguments["parameters"]
+        }
+        self.assertEqual(parameters["gate_event_id"], decision["gate_event_id"])
+        self.assertEqual(parameters["decision_reason"], decision["reason"])
+
+    def test_github_dispatcher_sends_only_the_exact_candidate_sha(self) -> None:
+        class Response:
+            status = 204
+            headers = {"X-GitHub-Request-Id": "request-1"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+        recorded: dict = {}
+
+        def open_request(request, timeout):
+            recorded["request"] = request
+            recorded["timeout"] = timeout
+            return Response()
+
+        dispatcher = GitHubWorkflowDispatcher(
+            "entireio/proofgate-demo",
+            "proofgate.yml",
+            "main",
+            "secret-token",
+            opener=open_request,
+        )
+        result = dispatcher.dispatch(
+            {"action": "APPROVE"},
+            {"commit_sha": "0123456789abcdef0123456789abcdef01234567"},
+        )
+        request = recorded["request"]
+        payload = json.loads(request.data)
+        self.assertEqual(result["status"], "DISPATCHED")
+        self.assertEqual(recorded["timeout"], 15.0)
+        self.assertEqual(payload["ref"], "main")
+        self.assertEqual(
+            payload["inputs"]["candidate_ref"],
+            "0123456789abcdef0123456789abcdef01234567",
+        )
+        self.assertEqual(request.get_header("Authorization"), "Bearer secret-token")
 
 
 class HTTPTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
+        self.publisher = RecordingDecisionPublisher()
+        self.dispatcher = RecordingWorkflowDispatcher()
         self.server = create_server(
-            "127.0.0.1", 0, Path(self.temporary_directory.name) / "http.db"
+            "127.0.0.1",
+            0,
+            Path(self.temporary_directory.name) / "http.db",
+            decision_publisher=self.publisher,
+            github_dispatcher=self.dispatcher,
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -201,6 +320,10 @@ class HTTPTests(unittest.TestCase):
         status, result = self.request("/api/gates/gate-checkout-retry/decision", body)
         self.assertEqual(status, 200)
         self.assertFalse(result["idempotent_replay"])
+        self.assertEqual(result["decision_sync"]["status"], "SYNCED")
+        self.assertEqual(result["workflow_dispatch"]["status"], "DISPATCHED")
+        self.assertEqual(len(self.publisher.calls), 1)
+        self.assertEqual(len(self.dispatcher.calls), 1)
         body["idempotency_key"] = "http-stale-second-request"
         status, conflict = self.request("/api/gates/gate-checkout-retry/decision", body)
         self.assertEqual(status, 409)

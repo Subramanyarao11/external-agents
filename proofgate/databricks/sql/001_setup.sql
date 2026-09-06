@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS gold_change_risk_features (
   changed_line_count INT,
   impacted_entity_count INT,
   dependency_depth INT,
+  max_dependent_count INT,
+  impact_analysis_source STRING,
+  impact_analysis_complete BOOLEAN,
   sensitive_components ARRAY<STRING> COMMENT 'Allowlisted component categories only; never source paths',
   test_total INT,
   test_failed INT,
@@ -124,6 +127,8 @@ SELECT
   count_if(decision = 'WARN') AS warn_count,
   count_if(decision = 'APPROVAL_REQUIRED') AS approval_required_count,
   avg(risk_score) AS average_risk_score,
+  max(max_dependent_count) AS maximum_dependent_count,
+  count_if(impact_analysis_complete) AS graph_complete_count,
   avg(CASE WHEN test_failed > 0 THEN 1.0 ELSE 0.0 END) AS test_failure_rate
 FROM gold_change_risk_features
 GROUP BY ALL;

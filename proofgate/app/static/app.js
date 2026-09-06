@@ -115,6 +115,8 @@ function renderEvidence() {
     evidenceCell("Review state", gate.review_status.replaceAll("_", " ")),
     evidenceCell("Test evidence", `${gate.tests_total - gate.tests_failed}/${gate.tests_total} passed`),
     evidenceCell("Entire provenance", gate.provenance_complete ? "Complete" : "Incomplete"),
+    evidenceCell("Impact analysis", `${gate.impact_analysis_source} · ${gate.impact_analysis_complete ? "complete" : "partial"}`),
+    evidenceCell("Maximum dependents", String(gate.max_dependent_count)),
     evidenceCell("Changed files", String(gate.changed_file_count)),
     evidenceCell("Review version", `v${gate.version}`),
   );
@@ -288,7 +290,7 @@ form.addEventListener("submit", async (event) => {
   confirm.disabled = true;
   $("dialog-error").textContent = "";
   try {
-    await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/decision`, {
+    const result = await api(`/api/gates/${encodeURIComponent(state.selectedGate.event_id)}/decision`, {
       method: "POST",
       body: JSON.stringify({
         action: state.pendingAction,
@@ -299,7 +301,15 @@ form.addEventListener("submit", async (event) => {
       }),
     });
     dialog.close();
-    showToast(`${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} recorded with audit evidence.`);
+    const synchronized = result.decision_sync?.status === "SYNCED";
+    const dispatched = result.workflow_dispatch?.status === "DISPATCHED";
+    if (state.pendingAction === "APPROVE" && synchronized && dispatched) {
+      showToast("Approval governed; GitHub re-evaluation dispatched.");
+    } else if (synchronized) {
+      showToast(`${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} synced to the CI gate.`);
+    } else {
+      showToast(`${state.pendingAction === "APPROVE" ? "Approval" : "Rejection"} recorded; CI sync is ${result.decision_sync?.status || "local"}.`);
+    }
     await refresh();
   } catch (error) {
     $("dialog-error").textContent = error.status === 409

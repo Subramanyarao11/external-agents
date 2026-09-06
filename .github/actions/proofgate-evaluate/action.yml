@@ -29,6 +29,9 @@ inputs:
   denied-prefixes:
     description: Optional comma-separated paths that can never be auto-approved.
     default: ""
+  graph-mode:
+    description: Entire Graph impact analysis mode (off, auto, or required).
+    default: auto
   fail-on:
     description: Fail on approval-required, warn, or never.
     default: approval-required
@@ -44,8 +47,11 @@ inputs:
 
 outputs:
   decision:
-    description: PASS, WARN, or APPROVAL_REQUIRED.
+    description: Deterministic automated verdict (PASS, WARN, or APPROVAL_REQUIRED).
     value: ${{ steps.gate.outputs.decision }}
+  enforcement-status:
+    description: Effective CI state, including AWAITING_APPROVAL or a human decision.
+    value: ${{ steps.gate.outputs.enforcement_status }}
   risk-score:
     description: Deterministic risk score from 0 to 100.
     value: ${{ steps.gate.outputs.risk_score }}
@@ -61,6 +67,15 @@ outputs:
   databricks-status:
     description: OFF, HISTORY_LOADED, EXPORTED, ROUNDTRIP_COMPLETE, or DEGRADED.
     value: ${{ steps.gate.outputs.databricks_status }}
+  impact-source:
+    description: Entire Graph version or the labelled git-path fallback.
+    value: ${{ steps.gate.outputs.impact_source }}
+  impact-complete:
+    description: Whether semantic analysis covered all changed files without warnings.
+    value: ${{ steps.gate.outputs.impact_complete }}
+  max-dependents:
+    description: Largest dependent count reported for a changed entity.
+    value: ${{ steps.gate.outputs.max_dependents }}
 
 runs:
   using: composite
@@ -79,6 +94,20 @@ runs:
         GOBIN="$install_dir" go install github.com/entireio/cli/cmd/entire@v0.10.5
         echo "$install_dir" >> "$GITHUB_PATH"
 
+    - name: Install Entire Graph
+      if: inputs.graph-mode != 'off'
+      shell: bash
+      env:
+        PROOFGATE_GRAPH_MODE: ${{ inputs.graph-mode }}
+      run: |
+        if ! entire plugin install graph --pin v0.4.0 --yes; then
+          if [[ "$PROOFGATE_GRAPH_MODE" == "required" ]]; then
+            echo "Entire Graph is required but installation failed." >&2
+            exit 1
+          fi
+          echo "Entire Graph installation failed; ProofGate will label and use its git-path fallback." >&2
+        fi
+
     - id: gate
       name: Evaluate governed change
       shell: bash
@@ -92,6 +121,7 @@ runs:
         PROOFGATE_IS_PUBLIC: ${{ inputs.repository-is-public }}
         PROOFGATE_SENSITIVE_PREFIXES: ${{ inputs.sensitive-prefixes }}
         PROOFGATE_DENIED_PREFIXES: ${{ inputs.denied-prefixes }}
+        PROOFGATE_GRAPH_MODE: ${{ inputs.graph-mode }}
         PROOFGATE_FAIL_ON: ${{ inputs.fail-on }}
         PROOFGATE_DATABRICKS_MODE: ${{ inputs.databricks-mode }}
         PROOFGATE_DATABRICKS_REQUIRED: ${{ inputs.databricks-required }}
@@ -107,6 +137,7 @@ runs:
           --repo-public="$PROOFGATE_IS_PUBLIC"
           --sensitive-prefixes "$PROOFGATE_SENSITIVE_PREFIXES"
           --denied-prefixes "$PROOFGATE_DENIED_PREFIXES"
+          --graph-mode "$PROOFGATE_GRAPH_MODE"
           --fail-on "$PROOFGATE_FAIL_ON"
           --databricks-mode "$PROOFGATE_DATABRICKS_MODE"
           --databricks-required="$PROOFGATE_DATABRICKS_REQUIRED"

@@ -12,6 +12,7 @@ type Policy struct {
 	AbnormalFileCountRisk    int     `json:"abnormal_file_count_risk"`
 	AbnormalImpactRisk       int     `json:"abnormal_impact_risk"`
 	DeepDependencyRisk       int     `json:"deep_dependency_risk"`
+	HighDependentRisk        int     `json:"high_dependent_risk"`
 	SimilarFailureRisk       int     `json:"similar_failure_risk"`
 	ComponentFailureRisk     int     `json:"component_failure_risk"`
 	RepeatedFailureRisk      int     `json:"repeated_failure_risk"`
@@ -20,6 +21,7 @@ type Policy struct {
 	MaximumHistoryAgeHours   int     `json:"maximum_history_age_hours"`
 	MaximumSafeHandoffs      int     `json:"maximum_safe_handoffs"`
 	MaximumSafeDepth         int     `json:"maximum_safe_depth"`
+	MaximumSafeDependents    int     `json:"maximum_safe_dependents"`
 }
 
 func DefaultPolicy() Policy {
@@ -35,6 +37,7 @@ func DefaultPolicy() Policy {
 		AbnormalFileCountRisk:    15,
 		AbnormalImpactRisk:       20,
 		DeepDependencyRisk:       10,
+		HighDependentRisk:        30,
 		SimilarFailureRisk:       15,
 		ComponentFailureRisk:     10,
 		RepeatedFailureRisk:      10,
@@ -43,5 +46,6 @@ func DefaultPolicy() Policy {
 		MaximumHistoryAgeHours:   24,
 		MaximumSafeHandoffs:      2,
 		MaximumSafeDepth:         3,
+		MaximumSafeDependents:    12,
 	}
 }

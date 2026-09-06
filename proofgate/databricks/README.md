@@ -4,6 +4,10 @@ This bundle deploys the Phase 1 evidence lake and deterministic transformation
 job. It intentionally references an existing SQL warehouse so it fits Free
 Edition's single-warehouse limit.
 
+The `demo` target schedules the idempotent Bronze → Silver → Gold job every five
+minutes. The `dev` target leaves the schedule paused so local experiments do not
+consume compute unexpectedly.
+
 ## Deploy
 
 ```bash
@@ -15,6 +19,9 @@ databricks bundle deploy -t dev --profile proofgate \
 databricks bundle run proofgate_prepare -t dev --profile proofgate \
   --var="warehouse_id=<warehouse-id>"
 ```
+
+For the complete two-phase event deployment, use `./deploy-demo.sh`; it deploys
+this evidence layer first and then the operational Phase 2 resources.
 
 The GitHub runner exporter needs short-lived OAuth credentials or a scoped
 service-principal token through GitHub Secrets, plus:
