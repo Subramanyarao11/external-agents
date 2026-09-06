@@ -1,0 +1,21 @@
+{
+  "suites": [
+    {
+      "name": "unit",
+      "status": "passed",
+      "total": 24,
+      "failed": 0,
+      "required": true,
+      "evidence_id": "gha-unit-demo-1"
+    },
+    {
+      "name": "integration",
+      "status": "passed",
+      "total": 6,
+      "failed": 0,
+      "required": true,
+      "evidence_id": "gha-integration-demo-1"
+    }
+  ]
+}
+
