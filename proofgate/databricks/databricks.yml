@@ -30,7 +30,7 @@ resources:
               path: ./sql/001_setup.sql
             parameters:
               catalog_name: ${var.catalog}
-              schema_name: ${var.schema}
+              schema_name: ${resources.schemas.proofgate.name}
         - task_key: transform_evidence
           depends_on:
             - task_key: setup_tables
@@ -40,7 +40,7 @@ resources:
               path: ./sql/002_transform.sql
             parameters:
               catalog_name: ${var.catalog}
-              schema_name: ${var.schema}
+              schema_name: ${resources.schemas.proofgate.name}
 
 targets:
   dev:
