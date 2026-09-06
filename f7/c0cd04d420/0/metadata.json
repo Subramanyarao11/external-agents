@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "f7c0cd04d420",
+  "session_id": "01a075a6-9ace-7dc3-a00c-525b8e07c981",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T07:37:57.871781Z",
+  "branch": "docs/curveball-hosted-evidence",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "a02fedef0fd2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 4272,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 31872,
+    "output_tokens": 464,
+    "api_call_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T07:37:57.858015Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1,
+    "total_committed": 0,
+    "total_lines_changed": 1,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1,
+      "user_lines_removed": 1,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "BUILDATHON.md": 1
+      },
+      "user_removed_per_file": {
+        "BUILDATHON.md": 1
+      }
+    }
+  ]
+}
