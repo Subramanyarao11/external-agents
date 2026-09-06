@@ -1,0 +1,86 @@
+We are now in the REQUIRED FRESH post-curveball agent session for the BTW Buildathon Track 3 repository. Do not edit any file yet.
+
+Mandatory sequence:
+1. Verify git is clean and HEAD is main at afa145d.
+2. Run 'entire status'.
+3. Reconstruct pre-curveball intent, architecture, completed work, verification, assumptions, and open risks from checkpoint e7d282cc52ef using 'entire checkpoint explain e7d282cc52ef' (use --generate if useful). Note that HEAD tree and checkpoint commit 11fd1a5 tree were independently verified identical: faec0a1933e7c5ad61ace58bdc878e10e5819db8.
+4. BEFORE ANY EDIT, perform Entire Graph analysis that identifies every affected parser, lifecycle handler, summary path, protocol/checkpoint writing path, and related tests. Required evidence: at least one graph search or definition lookup, a relationship/impact analysis before a high-risk change, and later a final semantic diff. Verify graph results against source. Record exact commands and findings. If graph commands are unclear, inspect 'entire graph --help' and repo graph instructions.
+5. After completing and reporting that analysis, create branch 'curveball/dual-format-resilience' from current main. Branch creation is okay; no content edit before analysis.
+
+Curveball:
+- The integrated agent/workflow released a new transcript and lifecycle event format, while existing users retain the original.
+- Support both.
+- Unknown events must not crash.
+- Incomplete transcript must yield a partial result, never corrupted/discarded.
+- Existing checkpoint behavior remains compatible.
+- Tests cover original, new, unknown, incomplete.
+- Do not duplicate the entire implementation per format.
+
+Critical constraint: the organizer says a matching JSONL fixture is attached, but no new fixture is present anywhere found under Desktop, Downloads, or ~/.codex/attachments. Do not guess the new schema, do not silently treat archived/future codex/cursor fixtures elsewhere as the official organizer fixture, and do not edit implementation until the exact matching fixture is supplied or explicitly mentor-confirmed. You may complete reconstruction, Graph impact analysis, branch creation, and give a precise implementation/test plan now. Then stop and clearly state exactly what fixture is needed and where to place it.
+
+Integrity:
+- The current main includes transparently imported original baseline commits 1-5 only. Do not use or copy archived future commits 6-14 as the curveball implementation, and do not obscure provenance.
+- Do not push or merge anything in this session yet.
+- Do not update BUILDATHON.md until after Graph analysis. Once fixture exists, later update BUILDATHON.md with the pre-curveball checkpoint, exact curveball, Graph evidence, revised design, tests and open risks.
+- Existing normal adapter and ProofGate tests should remain compatible; hosted RunPrompt e2e gaps are pre-existing and must be reported honestly.
+
+Work autonomously through reconstruction and Graph analysis now, but make no code/doc edit while fixture is missing.
+
+---
+
+Return your final concise assessment now. Do not run more tools, do not edit files, do not create a branch, and do not commit. State: reconstructed stable baseline, Graph impact paths/seams, verification performed, exact missing-fixture blocker, and safe next implementation plan once the matching JSONL fixture is supplied.
+
+---
+
+The official/mentor-confirmed Noon Curveball fixture has now been supplied. Continue in this SAME fresh post-curveball session and implement it fully.
+
+Important provenance detail: the chat renderer escaped underscores as \_. Restore those display escapes to ordinary underscores so the checked-in fixture is valid JSONL. Apart from that mechanical normalization, preserve every record and value exactly. Document this normalization in the test/commit notes.
+
+Required workflow:
+1. Reconfirm clean main at afa145d, then create branch curveball/dual-format-resilience.
+2. Follow repository black-box-first TDD. Add the official fixture under agents/entire-agent-github-actions/testdata/ as claude-action-execution-v2.jsonl.
+3. Add the required failing tests FIRST and run them to observe failure. Cover:
+   - legacy JSON array still works
+   - supplied new JSONL works
+   - inserted valid unknown event does not crash and known records remain usable
+   - incomplete/truncated final JSONL record returns all complete records as a valid partial result rather than corrupting/discarding them
+   Include capture/summary/files/prompts/tokens/model/position/compact behavior where relevant and direct CaptureFinish/lifecycle compatibility.
+4. Commit that test contract as a meaningful curveball-response checkpoint, even though the newly added tests are expected to fail. Use an honest commit message such as "test(github-actions): define curveball transcript contract".
+5. Implement ONE format-detecting decoder/normalization seam feeding the existing canonical SDKMessage model. Do not duplicate extraction, summary, token, model, compaction, or checkpoint logic per format. Preserve raw transcript bytes. Unknown events must be safely ignored; malformed complete records should remain errors, while only an incomplete trailing JSONL record should yield a partial parse. Normalize the confirmed lifecycle records into existing protocol behavior only where required by the fixture; preserve session identity, hook ordering and checkpoint compatibility.
+6. Update the independent sample verifier if its legacy-array assumption is impacted.
+7. Run gofmt, focused tests, full github-actions module tests/build, git diff --check, available compliance/sample verification, ProofGate tests that are locally supported, and any honest lifecycle checks. Do not claim unavailable hosted/credential-dependent checks.
+8. Update BUILDATHON.md with the curveball, Graph impact evidence, design decision, failure observed, tests, and remaining risks. Correct stale PR state if encountered.
+9. Commit final implementation+verification as the final curveball checkpoint.
+10. Run the required final semantic analysis:
+   entire graph diff --base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d --head HEAD --json
+   Verify Graph findings against source/tests.
+11. Do NOT push or merge yet. Finish with exact commits, test results, checkpoint status/IDs if available, changed files, risks, and recommended PR/merge steps.
+
+Official JSONL fixture:
+{"timestamp":"2026-09-06T09:00:00.000+05:30","event":"session_started","session_id":"btw-track3-demo-001","agent":{"name":"AcmeCode","version":"1.4.2"},"repository":"github.com/example/checkout-service","branch":"feature/add-coupon-validation"}
+{"timestamp":"2026-09-06T09:00:08.214+05:30","event":"user_prompt","session_id":"btw-track3-demo-001","message_id":"msg-001","text":"Add coupon validation to checkout. Coupons should be rejected if expired, disabled, or below the minimum cart value. Add tests."}
+{"timestamp":"2026-ény09-06T09:00:09.048+05:30","event":"agent_response","session_id":"btw-track3-demo-001","message_id":"msg-002","parent_message_id":"msg-001","text":"I’ll inspect the checkout flow and existing promotion models, then implement validation and tests."}
+{"timestamp":"2026-09-06T09:00:11.392+05:30","event":"tool_call","session_id":"btw-track3-demo-001","tool":"search","call_id":"tool-001","input":{"query":"Coupon checkout promotion validate minimum cart"}}
+{"timestamp":"2026-09-06T09:00:11.744+05:30","event":"tool_result","session_id":"btw-track3-demo-001","call_id":"tool-001","output":{"matches":["src/checkout/apply_coupon.ts","src/promotions/coupon.ts","tests/checkout/apply_coupon.test.ts"]}}
+{"timestamp":"2026-09-06T09:01:06.120+05:30","event":"file_read","session_id":"btw-track3-demo-001","path":"src/promotions/coupon.ts","lines":"1-118"}
+{"timestamp":"2026-09-06T09:02:31.901+05:30","event":"file_changed","session_id":"btw-track3-demo-001","path":"src/checkout/apply_coupon.ts","change":"modified","summary":"Added validation for enabled state, expiry, and minimum cart value.","lines_added":24,"lines_removed":3}
+{"timestamp":"2026-09-06T09:03:12.432+05:30","event":"file_changed","session_id":"btw-track3-demo-001","path":"tests/checkout/apply_coupon.test.ts","change":"modified","summary":"Added tests for expired, disabled, low-cart-value, and valid coupons.","lines_added":71,"lines_removed":0}
+{"timestamp":"2026-09-06T09:03:19.085+05:30","event":"tool_call","session_id":"btw-track3-demo-001","tool":"shell","call_id":"tool-002","input":{"command":"npm test -- apply_coupon.test.ts"}}
+{"timestamp":"2026-09-06T09:03:24.612+05:30","event":"tool_result","session_id":"btw-track3-demo-001","call_id":"tool-002","output":{"exit_code":1,"summary":"1 failed, 7 passed","stderr":"Expected CouponExpiredError but received CouponDisabledError"}}
+{"timestamp":"2026-09-06T09:03:29.197+05:30","event":"agent_response","session_id":"btw-track3-demo-001","message_id":"msg-003","text":"One test exposed ambiguous validation ordering. I’ll make expiry take precedence over disabled state so the failure is deterministic."}
+{"timestamp":"2026-09-06T09:04:07.822+05:30","event":"file_changed","session_id":"btw-track3-demo-001","path":"src/checkout/apply_coupon.ts","change":"modified","summary":"Reordered coupon checks so expiry is evaluated before enabled state.","lines_added":2,"lines_removed":2}
+{"timestamp":"2026-09-06lgondT09:04:13.104+05:30","event":"tool_call","session_id":"btw-track3-demo-001","tool":"shell","call_id":"tool-003","input":{"command":"npm test -- apply_coupon.test.ts"}}
+{"timestamp":"2026-09-06lk09:04:18.289+05:30","event":"tool_result","session_id":"btw-track3-demo-001","call_id":"tool-003","output":{"exit_code":0,"summary":"8 passed"}}
+{"timestamp":"2026-09-06T09:04:33.778+05:30","event":"usage","session_id":"btw-track3-demo-001","model":"acmecode-pro","input_tokens":8421,"output_tokens":2194,"tool_calls":3}
+{"timestamp":"2026-09-06T09:04:49.600+05:30","event":"checkpoint_created","session_id":"btw-track3-demo-001","checkpoint_id":"cp-001","git_commit":"8d34f70c1e9fd62c1b5dc4fbbbf5013db2817ae1","summary":"Coupon validation implemented and tested.","intent":"Reject expired, disabled, or minimum-cart-value-ineligible coupons during checkout.","open_questions":["Should expiry or disabled state take precedence in user-facing errors?"]}
+{"timestamp":"2026-09-06T09:05:02.314+05:30","event":"session_ended","session_id":"btw-track3-demo-001","status":"completed","duration_seconds":302}
+
+CRITICAL: Two timestamp strings in the text above were accidentally corrupted while transferring this prompt ("2026-ény09..." and "2026-..."). Do NOT use those corrupted lines verbatim. Instead use the exact timestamps from the user's fixture:
+- agent_response msg-002: 2026-09-06T09:00:09.048+05:30
+- tool_call tool-003: 2026-09-06T09:04:13.104+05:30
+- tool_result tool-003: 2026-09-06T09:04:18.289+05:30
+All other content is as above.
+
+---
+
+You have been active for ~19 minutes but the branch is still clean. Please stop planning and execute now: create the exact valid JSONL fixture with the corrected timestamps, add the black-box contract tests, run them to demonstrate expected failures, then make the required tests-first commit. Keep the current session and report the first commit hash when done.
