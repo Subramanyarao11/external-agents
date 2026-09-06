@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "5478e693734c",
+  "session_id": "01a07614-691e-7950-bf3f-8645836d1bde",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T09:38:40.539615Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "07e2d9ade435",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 34041,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 196608,
+    "output_tokens": 1994,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T09:38:40.507963Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 432,
+    "total_committed": 0,
+    "total_lines_changed": 432,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 166,
+      "user_lines_removed": 432,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "BUILDATHON.md": 154,
+        "proofgate/.env.databricks.local": 12
+      },
+      "user_removed_per_file": {
+        "BUILDATHON.md": 432
+      }
+    }
+  ]
+}
