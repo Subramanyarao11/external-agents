@@ -1,0 +1,162 @@
+You are handling ProofGate baseline batch 2 of 3 in the official Entire-mirrored repository.
+
+Repository:
+https://github.com/Subramanyarao11/external-agents
+
+Expected starting main:
+5999589
+
+Your scope:
+Import and verify archived commits 6–10 only:
+3e63e9f through dcb6f5a
+
+These contain:
+- Control Room and GitHub approvals
+- Databricks control-plane deployment
+- Change Passports and Graph metadata
+- Packaged GitHub Action and demo setup
+- Databricks feedback and search stack
+
+Important constraints:
+- Work only inside the clone created through Entire.
+- Do not squash, cherry-pick, re-author, amend, or recreate the archived commits.
+- Do not claim the archived implementation as newly authored during the event.
+- Preserve the existing noon-curveball implementation.
+- Original and new transcript formats must continue working.
+- Unknown events must not crash.
+- Incomplete transcripts must still produce partial results.
+- Do not delete or weaken the curveball tests.
+- Do not merge your own PR.
+- Stop if the expected starting main or bundle history does not match.
+
+Begin by running:
+
+git switch main
+git pull --ff-only origin main
+git status --short --branch
+git rev-parse --short HEAD
+entire status
+entire graph version
+
+HEAD must initially be 5999589 and the worktree must be clean.
+
+Read:
+- BUILDATHON.md
+- .entire/graph-agent.md
+- agents/entire-agent-github-actions/internal/githubactions/curveball_transcript_test.go
+- agents/entire-agent-github-actions/testdata/claude-action-execution-v2.jsonl
+
+Use this checkpoint for orientation:
+
+entire checkpoint explain f7c0cd04d420
+
+Start a fresh agent session after confirming Entire and Graph are active.
+
+Before importing anything, run an Entire Graph search relevant to Control Room, GitHub approvals, Databricks evidence, and the existing GitHub Actions agent. Treat Graph results as evidence and verify them against source.
+
+Create your branch:
+
+git switch -c baseline/02-control-room
+
+The ZIP contains the archive at:
+
+<PACK_DIR>/git/proofgate-implementation.bundle
+
+Set the real absolute ZIP folder path:
+
+PACK_DIR="/absolute/path/to/Entire-ProofGate-Kickoff-Pack"
+
+Verify and fetch it:
+
+git bundle verify "$PACK_DIR/git/proofgate-implementation.bundle"
+git remote add proofgate-archive "$PACK_DIR/git/proofgate-implementation.bundle"
+git fetch proofgate-archive archive/proofgate-implementation
+git log --oneline --reverse 6d1396d..dcb6f5a
+
+The log must contain exactly these five commits in order:
+
+3e63e9f
+7c615c5
+2a34aa4
+3f524e3
+dcb6f5a
+
+Import them with one transparent merge:
+
+git merge --no-ff dcb6f5a \
+  -m "chore: import approved ProofGate baseline batch 2 of 3"
+
+If merge conflicts occur:
+1. Stop before resolving.
+2. Run Graph impact analysis on the affected symbols.
+3. Preserve the curveball dual-format parser and all curveball tests.
+4. Resolve only the actual conflicts.
+5. Never take an entire side blindly.
+6. Record the conflict, rejected options and reasoning in BUILDATHON.md.
+
+After the merge, verify:
+
+git log --oneline --reverse 6d1396d..dcb6f5a
+git merge-base --is-ancestor dcb6f5a HEAD
+git diff --check main..HEAD
+git status --short
+entire status
+
+The merge must be performed during the active tracked agent session so Entire creates a meaningful checkpoint. Confirm the resulting merge commit contains an Entire-Checkpoint trailer.
+
+Run appropriate verification, including at minimum:
+
+(cd agents/entire-agent-github-actions && mise exec -- go test ./...)
+(cd agents/entire-agent-github-actions && mise exec -- go build ./...)
+(cd proofgate && mise exec -- go test ./...)
+(cd proofgate && mise exec -- go build ./...)
+(cd e2e && mise exec -- go test ./...)
+./agents/entire-agent-github-actions/scripts/verify-github-actions.sh --sample
+
+Also run any UI, Databricks or Control Room checks introduced by this batch that can operate without credentials. Clearly distinguish offline checks from live external-service verification.
+
+Update BUILDATHON.md with:
+- Batch 2’s five exact SHAs
+- Import merge SHA
+- Entire checkpoint ID
+- Graph query and verified findings
+- Merge conflicts, if any
+- Tests executed and exact results
+- Live integrations that remain unverified
+
+Run a final Graph semantic diff:
+
+entire graph diff --base main --head HEAD --json
+
+Confirm that changes correspond only to batch 2, required conflict resolution and verification documentation.
+
+Push:
+
+git push -u origin baseline/02-control-room
+
+Open a PR to main titled:
+
+chore: import approved ProofGate baseline batch 2 of 3
+
+In the PR, disclose that the five original commits came from the approved archived bundle and were preserved without rewriting. Include tests, Graph evidence and the Entire checkpoint.
+
+Stop after opening the PR and send Subramanya:
+- PR URL
+- Branch head SHA
+- Merge commit SHA
+- Entire checkpoint ID
+- Test summary
+- Any conflicts or risks
+
+Do not proceed to batch 3.
+
+make the new branch and pull from the main branch before taking any task
+
+---
+
+I am Daksh, and the above assigned task is for Daksh(me)
+
+1. take the latest pull from the main branch, use that thing
+2. path @/Users/daksh/GolandProjects/Entire-ProofGate-Kickoff-Pack/ this is zip Users/daksh/GolandProjects/Entire-ProofGate-Kickoff-Pack
+
+3. yes
