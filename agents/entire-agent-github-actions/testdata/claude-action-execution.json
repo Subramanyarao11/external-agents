@@ -1,0 +1,84 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "session_id": "fixture-session-123",
+    "model": "claude-sonnet-4-6"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Add the risk evaluator"
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "I will add the evaluator and its tests."
+        },
+        {
+          "type": "tool_use",
+          "id": "tool-1",
+          "name": "Write",
+          "input": {
+            "file_path": "proofgate/evaluator.go",
+            "content": "package proofgate"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Add a regression test"
+        }
+      ]
+    }
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "tool-2",
+          "name": "Edit",
+          "input": {
+            "file_path": "proofgate/evaluator_test.go",
+            "old_string": "TODO",
+            "new_string": "PASS"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "result": "Implemented the risk evaluator and regression coverage.",
+    "num_turns": 2,
+    "usage": {
+      "input_tokens": 210,
+      "output_tokens": 72,
+      "cache_creation_input_tokens": 20,
+      "cache_read_input_tokens": 18
+    }
+  }
+]

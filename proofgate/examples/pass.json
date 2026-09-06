@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "event_id": "evt-demo-pass-001",
+  "occurred_at": "2026-09-04T12:00:00Z",
+  "repository": {
+    "id": "demo/mobile-shop",
+    "opted_in": true,
+    "is_public": true
+  },
+  "change": {
+    "commit_sha": "4f6ac89",
+    "checkpoint_id": "01PROOFGATEPASS000000000001",
+    "intent_summary": "Correct checkout button copy",
+    "ai_authored": true
+  },
+  "authoring": {
+    "source_adapter": "github-actions@1",
+    "agent_family": "claude-code-action",
+    "model_family": "sonnet",
+    "session_count": 1,
+    "handoff_count": 0,
+    "tool_categories": ["read", "edit", "test"],
+    "provenance_complete": true
+  },
+  "impact": {
+    "changed_files": ["src/checkout/labels.ts"],
+    "changed_line_count": 2,
+    "impacted_entities": ["CheckoutLabels"],
+    "dependency_depth": 1,
+    "sensitive_components": [],
+    "denied_components": []
+  },
+  "tests": {
+    "total": 18,
+    "failed": 0,
+    "required_test_missing": false,
+    "required_suites": ["unit"],
+    "passed_suites": ["unit"]
+  },
+  "history": {
+    "available": true,
+    "snapshot_at": "2026-09-04T11:55:00Z",
+    "baseline_window_days": 30,
+    "baseline_change_count": 28,
+    "normal_file_count_p95": 3,
+    "normal_impact_count_p95": 4,
+    "similar_change_count": 4,
+    "similar_failure_rate": 0,
+    "component_failure_rate": 0.04,
+    "repeated_failure_count": 0,
+    "similar_evidence_ids": ["evt-history-copy-03"]
+  },
+  "safety": {
+    "secret_detected": false,
+    "redaction_version": "redact-v1",
+    "dropped_field_count": 2,
+    "raw_content_exported": false,
+    "explicit_content_consent": false
+  },
+  "evidence_ids": ["evt-demo-pass-001", "test-run-812"]
+}
