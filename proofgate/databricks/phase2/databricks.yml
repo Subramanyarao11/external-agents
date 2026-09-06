@@ -275,6 +275,11 @@ resources:
             securable_type: TABLE
             securable_full_name: ${var.catalog}.${var.schema}.gold_change_risk_features
             permission: SELECT
+        - name: proofgate-silver-evidence
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.silver_checkpoint_events
+            permission: SELECT
         - name: proofgate-review-decisions
           uc_securable:
             securable_type: TABLE
