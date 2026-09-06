@@ -1,0 +1,9 @@
+Before we push, make three final requirement-hardening corrections in this same post-curveball session:
+1. Add a focused test proving an entirely incomplete first/trailing JSONL record yields an empty partial result without error, then change parseEventJSONL so any unterminated tail returns the messages parsed so far (including zero), not only when len(messages) > 0.
+2. Remove the inaccurate wording about "three explicitly corrected timestamps" from both the curveball test comment and BUILDATHON.md. Say only that chat-rendered \\_ display escapes were mechanically restored to ordinary underscores; all 17 supplied records/values were preserved.
+3. Update BUILDATHON.md with the actual final Graph semantic-diff result you just obtained, including base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d, expected impacted parser/tests/verifier/docs, no unrelated implementation symbols, and that the fixture was validated directly because Graph does not parse JSONL.
+Run focused and full tests, go build, fixture validation, verifier checks, git diff --check, and the final Graph diff again after these changes. Commit this as a small final curveball verification/polish milestone so Entire creates one last checkpoint. Do not push or merge.
+
+---
+
+One stale sentence remains in BUILDATHON.md line 148: it still says an incomplete tail only yields partial output "after at least one complete JSONL record." That is now false after the final hardening. Replace it with wording that any genuinely unterminated final record yields all messages parsed so far, including an empty partial result when the first record is incomplete. Check for any other stale copy of the old limitation, run git diff --check and the focused curveball tests, then commit this documentation correction as a transparent final evidence-doc fix so Entire checkpoints it. Do not push or merge.
