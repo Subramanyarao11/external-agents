@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "26696d56c2d4",
+  "session_id": "01a0753c-c2cb-7cb0-aa5f-32806c81a39e",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T06:12:38.556667Z",
+  "branch": "baseline/01-foundation",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "0e749ef2b5dd",
+  "checkpoint_transcript_start": 563,
+  "transcript_lines_at_start": 563,
+  "compact_transcript_start": 60,
+  "token_usage": {
+    "input_tokens": 6810,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 609280,
+    "output_tokens": 2701,
+    "api_call_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T06:12:38.487117Z",
+    "agent_lines": 2,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2,
+    "total_lines_changed": 4,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
