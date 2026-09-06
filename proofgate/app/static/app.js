@@ -87,8 +87,34 @@ function renderGates() {
 
 function evidenceCell(label, value) {
   const cell = element("div", "evidence-cell");
-  cell.append(element("span", "", label), element("strong", "", value));
+  const strong = element("strong", "", value);
+  strong.title = value;
+  cell.append(element("span", "", label), strong);
   return cell;
+}
+
+function evidenceValue(value, fallback = "Not reported") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function evidencePercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${Math.round(number * 100)}%` : "Not reported";
+}
+
+function evidenceSection(title, cells, tags = []) {
+  const section = element("section", "evidence-section");
+  section.append(element("p", "section-label", title));
+  const grid = element("div", "evidence-grid evidence-grid-detail");
+  for (const [label, value] of cells) grid.append(evidenceCell(label, evidenceValue(value)));
+  section.append(grid);
+  if (tags.length) {
+    const tagList = element("div", "evidence-tags");
+    for (const tag of tags) tagList.append(element("span", "evidence-tag", tag));
+    section.append(tagList);
+  }
+  return section;
 }
 
 function renderEvidence() {
@@ -100,10 +126,14 @@ function renderEvidence() {
     evidencePanel.append(empty);
     return;
   }
+  const details = gate.evidence || {};
 
   const heading = element("div", "evidence-heading");
   const headingCopy = element("div");
-  headingCopy.append(element("p", "eyebrow", "Change passport"), element("h2", "", `${gate.repo_id} · ${gate.commit_sha}`), element("span", "checkpoint", gate.checkpoint_id));
+  const checkpointLabel = gate.checkpoint_id && gate.checkpoint_id !== "missing"
+    ? gate.checkpoint_id
+    : "No Entire checkpoint attached";
+  headingCopy.append(element("p", "eyebrow", "Change passport"), element("h2", "", `${gate.repo_id} · ${gate.commit_sha}`), element("span", "checkpoint", checkpointLabel));
   const orb = element("div", `risk-orb ${riskClass(gate.risk_score)}`);
   orb.append(element("strong", "", String(gate.risk_score)), element("small", "", "RISK"));
   heading.append(headingCopy, orb);
@@ -115,12 +145,47 @@ function renderEvidence() {
     evidenceCell("Review state", gate.review_status.replaceAll("_", " ")),
     evidenceCell("Test evidence", `${gate.tests_total - gate.tests_failed}/${gate.tests_total} passed`),
     evidenceCell("Entire provenance", gate.provenance_complete ? "Complete" : "Incomplete"),
-    evidenceCell("Impact analysis", `${gate.impact_analysis_source} · ${gate.impact_analysis_complete ? "complete" : "partial"}`),
-    evidenceCell("Maximum dependents", String(gate.max_dependent_count)),
-    evidenceCell("Changed files", String(gate.changed_file_count)),
     evidenceCell("Review version", `v${gate.version}`),
+    evidenceCell("Policy", evidenceValue(details.policy_version)),
   );
-  evidencePanel.append(grid, element("p", "section-label", "Policy reasons"));
+  evidencePanel.append(
+    grid,
+    evidenceSection("Entire authoring trail", [
+      ["Checkpoint", checkpointLabel],
+      ["Source adapter", details.source_adapter],
+      ["Agent family", details.agent_family],
+      ["Model family", details.model_family],
+      ["Agent sessions", details.session_count ?? 0],
+      ["Agent handoffs", details.handoff_count ?? 0],
+    ], details.tool_categories || []),
+    evidenceSection("Graph impact map", [
+      ["Analysis", `${gate.impact_analysis_source} · ${gate.impact_analysis_complete ? "complete" : "partial"}`],
+      ["Changed files", gate.changed_file_count],
+      ["Changed lines", details.changed_line_count ?? 0],
+      ["Impacted entities", details.impacted_entity_count ?? 0],
+      ["Dependency depth", details.dependency_depth ?? 0],
+      ["Maximum dependents", gate.max_dependent_count],
+    ], details.sensitive_components || []),
+    evidenceSection("Verification and history", [
+      ["Tests passed", `${gate.tests_total - gate.tests_failed}/${gate.tests_total}`],
+      ["Required suite", details.required_test_missing ? "Missing" : "Present"],
+      ["History", details.history_available ? "Available" : "Unavailable"],
+      ["Baseline changes", details.baseline_change_count ?? 0],
+      ["Similar changes", details.similar_change_count ?? 0],
+      ["Similar failure rate", evidencePercent(details.similar_failure_rate)],
+      ["Component failure rate", evidencePercent(details.component_failure_rate)],
+      ["History snapshot", details.history_snapshot_at ? formatTime(details.history_snapshot_at) : "Not reported"],
+    ]),
+    evidenceSection("Governance lineage", [
+      ["Schema", details.schema_version],
+      ["Redaction", details.redaction_version],
+      ["Dropped fields", details.dropped_field_count ?? 0],
+      ["Feature generated", details.feature_generated_at ? formatTime(details.feature_generated_at) : "Not reported"],
+      ["Passport fingerprint", details.passport_fingerprint],
+      ["Payload hash", details.payload_hash],
+    ]),
+    element("p", "section-label", "Policy reasons"),
+  );
 
   const reasons = element("div", "reason-list");
   if (!gate.reason_codes.length) reasons.append(element("div", "clean-reasons", "✓ No policy exceptions detected"));
@@ -254,9 +319,10 @@ async function refresh({ keepSelection = true } = {}) {
   const [gatePayload, metricPayload] = await Promise.all([api("/api/gates"), api("/api/metrics")]);
   state.gates = gatePayload.gates;
   const isDemo = gatePayload.data_mode === "demo";
-  $("data-mode-title").textContent = isDemo ? "Local demo" : "Databricks live";
-  $("data-mode-copy").textContent = isDemo ? "Seeded, synthetic evidence" : "Lakebase review state";
-  $("data-mode-chip").lastChild.textContent = isDemo ? " DEMO DATA" : " LIVE DATA";
+  const isCache = gatePayload.data_mode === "databricks-cache";
+  $("data-mode-title").textContent = isDemo ? "Local demo" : isCache ? "Databricks cache" : "Databricks live";
+  $("data-mode-copy").textContent = isDemo ? "Seeded, synthetic evidence" : isCache ? "Governed warehouse evidence" : "Lakebase review state";
+  $("data-mode-chip").lastChild.textContent = isDemo ? " DEMO DATA" : isCache ? " DATABRICKS CACHE" : " LIVE DATA";
   $("reset-button").hidden = !isDemo;
   $("sync-button").hidden = isDemo;
   updateMetrics(metricPayload.metrics);

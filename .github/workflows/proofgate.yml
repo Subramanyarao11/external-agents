@@ -18,6 +18,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   evaluate:
@@ -70,6 +71,22 @@ jobs:
           fail-on: approval-required
           databricks-mode: roundtrip
           databricks-required: "false"
+
+      - name: Publish the PR evidence report
+        if: >-
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 proofgate/scripts/publish_pr_report.py \
+            --result proofgate-result.json \
+            --repository "${{ github.repository }}" \
+            --pull-request "${{ github.event.pull_request.number }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Preserve the Change Passport
         if: always()

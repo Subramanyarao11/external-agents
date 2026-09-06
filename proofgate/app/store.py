@@ -158,6 +158,7 @@ class SQLiteStore:
                     tests_failed INTEGER NOT NULL,
                     provenance_complete INTEGER NOT NULL,
                     summary TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL DEFAULT '{}',
                     reason_codes_json TEXT NOT NULL,
                     hard_stop_codes_json TEXT NOT NULL,
                     review_status TEXT NOT NULL,
@@ -189,6 +190,7 @@ class SQLiteStore:
                 "impact_analysis_source": "TEXT NOT NULL DEFAULT 'git-path-heuristic'",
                 "impact_analysis_complete": "INTEGER NOT NULL DEFAULT 0",
                 "max_dependent_count": "INTEGER NOT NULL DEFAULT 0",
+                "evidence_json": "TEXT NOT NULL DEFAULT '{}'",
             }
             for name, definition in migrations.items():
                 if name not in columns:
@@ -209,9 +211,9 @@ class SQLiteStore:
                         automated_verdict, risk_score, changed_file_count,
                         impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
-                        reason_codes_json, hard_stop_codes_json, review_status,
-                        version, occurred_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        evidence_json, reason_codes_json, hard_stop_codes_json,
+                        review_status, version, occurred_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     """,
                     (
                         gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
@@ -222,6 +224,7 @@ class SQLiteStore:
                         gate["max_dependent_count"],
                         gate["tests_total"], gate["tests_failed"],
                         int(gate["provenance_complete"]), gate["summary"],
+                        json.dumps(gate.get("evidence", {})),
                         json.dumps(gate["reason_codes"]),
                         json.dumps(gate["hard_stop_codes"]), gate["review_status"],
                         gate["occurred_at"], _now(),
@@ -243,9 +246,9 @@ class SQLiteStore:
                         automated_verdict, risk_score, changed_file_count,
                         impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
-                        reason_codes_json, hard_stop_codes_json, review_status,
-                        version, occurred_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        evidence_json, reason_codes_json, hard_stop_codes_json,
+                        review_status, version, occurred_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     ON CONFLICT(event_id) DO UPDATE SET
                         repo_id = excluded.repo_id,
                         checkpoint_id = excluded.checkpoint_id,
@@ -260,6 +263,7 @@ class SQLiteStore:
                         tests_failed = excluded.tests_failed,
                         provenance_complete = excluded.provenance_complete,
                         summary = excluded.summary,
+                        evidence_json = excluded.evidence_json,
                         reason_codes_json = excluded.reason_codes_json,
                         hard_stop_codes_json = excluded.hard_stop_codes_json,
                         occurred_at = excluded.occurred_at,
@@ -274,6 +278,7 @@ class SQLiteStore:
                         int(gate.get("max_dependent_count", 0)),
                         gate["tests_total"], gate["tests_failed"],
                         int(gate["provenance_complete"]), gate["summary"],
+                        json.dumps(gate.get("evidence", {})),
                         json.dumps(gate["reason_codes"]), json.dumps(gate["hard_stop_codes"]),
                         gate.get("review_status", "PENDING"), gate["occurred_at"], _now(),
                     ),
@@ -286,6 +291,7 @@ class SQLiteStore:
         gate = dict(row)
         gate["provenance_complete"] = bool(gate["provenance_complete"])
         gate["impact_analysis_complete"] = bool(gate["impact_analysis_complete"])
+        gate["evidence"] = json.loads(gate.pop("evidence_json"))
         gate["reason_codes"] = json.loads(gate.pop("reason_codes_json"))
         gate["hard_stop_codes"] = json.loads(gate.pop("hard_stop_codes_json"))
         return gate

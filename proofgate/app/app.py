@@ -312,8 +312,24 @@ def create_runtime_server(host: str, port: int) -> ProofGateServer:
             store.seed_demo()
             data_mode = "demo"
         return ProofGateServer((host, port), store, data_mode)
+    if mode == "warehouse-cache":
+        default_database = APP_DIR / ".local" / "proofgate-live-cache.db"
+        database_path = Path(os.environ.get("PROOFGATE_DB_PATH", str(default_database)))
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+        synchronizer = create_synchronizer()
+        if synchronizer is None:
+            raise RuntimeError(
+                "warehouse-cache mode requires PROOFGATE_WAREHOUSE_ID, "
+                "PROOFGATE_CATALOG, and PROOFGATE_SCHEMA"
+            )
+        return ProofGateServer(
+            (host, port),
+            SQLiteStore(database_path),
+            "databricks-cache",
+            synchronizer=synchronizer,
+        )
     if mode != "sqlite":
-        raise RuntimeError("PROOFGATE_STORE must be sqlite or lakebase")
+        raise RuntimeError("PROOFGATE_STORE must be sqlite, warehouse-cache, or lakebase")
     default_database = APP_DIR / ".local" / "proofgate.db"
     database_path = Path(os.environ.get("PROOFGATE_DB_PATH", str(default_database)))
     database_path.parent.mkdir(parents=True, exist_ok=True)

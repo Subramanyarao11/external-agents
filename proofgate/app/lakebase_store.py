@@ -97,6 +97,7 @@ class LakebaseStore:
                     tests_failed INTEGER NOT NULL,
                     provenance_complete BOOLEAN NOT NULL,
                     summary TEXT NOT NULL,
+                    evidence_json JSONB NOT NULL DEFAULT '{}'::jsonb,
                     reason_codes_json JSONB NOT NULL,
                     hard_stop_codes_json JSONB NOT NULL,
                     review_status TEXT NOT NULL,
@@ -111,7 +112,8 @@ class LakebaseStore:
                 ALTER TABLE proofgate_gates
                     ADD COLUMN IF NOT EXISTS impact_analysis_source TEXT NOT NULL DEFAULT 'git-path-heuristic',
                     ADD COLUMN IF NOT EXISTS impact_analysis_complete BOOLEAN NOT NULL DEFAULT FALSE,
-                    ADD COLUMN IF NOT EXISTS max_dependent_count INTEGER NOT NULL DEFAULT 0
+                    ADD COLUMN IF NOT EXISTS max_dependent_count INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS evidence_json JSONB NOT NULL DEFAULT '{}'::jsonb
                 """
             )
             cursor.execute(
@@ -151,12 +153,12 @@ class LakebaseStore:
                         automated_verdict, risk_score, changed_file_count,
                         impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
-                        reason_codes_json, hard_stop_codes_json, review_status,
-                        version, occurred_at, updated_at
+                        evidence_json, reason_codes_json, hard_stop_codes_json,
+                        review_status, version, occurred_at, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s, %s,
-                        %s::jsonb, %s::jsonb, %s, 1, %s, %s
+                        %s::jsonb, %s::jsonb, %s::jsonb, %s, 1, %s, %s
                     ) ON CONFLICT (event_id) DO NOTHING
                     """,
                     (
@@ -166,6 +168,7 @@ class LakebaseStore:
                         gate["impact_analysis_complete"], gate["max_dependent_count"],
                         gate["tests_total"], gate["tests_failed"],
                         gate["provenance_complete"], gate["summary"],
+                        json.dumps(gate.get("evidence", {})),
                         json.dumps(gate["reason_codes"]),
                         json.dumps(gate["hard_stop_codes"]), gate["review_status"],
                         gate["occurred_at"], _now(),
@@ -185,12 +188,12 @@ class LakebaseStore:
                         automated_verdict, risk_score, changed_file_count,
                         impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
-                        reason_codes_json, hard_stop_codes_json, review_status,
-                        version, occurred_at, updated_at
+                        evidence_json, reason_codes_json, hard_stop_codes_json,
+                        review_status, version, occurred_at, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s, %s,
-                        %s::jsonb, %s::jsonb, %s, 1, %s, %s
+                        %s::jsonb, %s::jsonb, %s::jsonb, %s, 1, %s, %s
                     ) ON CONFLICT (event_id) DO UPDATE SET
                         repo_id = EXCLUDED.repo_id,
                         checkpoint_id = EXCLUDED.checkpoint_id,
@@ -205,6 +208,7 @@ class LakebaseStore:
                         tests_failed = EXCLUDED.tests_failed,
                         provenance_complete = EXCLUDED.provenance_complete,
                         summary = EXCLUDED.summary,
+                        evidence_json = EXCLUDED.evidence_json,
                         reason_codes_json = EXCLUDED.reason_codes_json,
                         hard_stop_codes_json = EXCLUDED.hard_stop_codes_json,
                         occurred_at = EXCLUDED.occurred_at,
@@ -219,6 +223,7 @@ class LakebaseStore:
                         int(gate.get("max_dependent_count", 0)),
                         gate["tests_total"], gate["tests_failed"],
                         gate["provenance_complete"], gate["summary"],
+                        json.dumps(gate.get("evidence", {})),
                         json.dumps(gate["reason_codes"]),
                         json.dumps(gate["hard_stop_codes"]),
                         gate.get("review_status", "PENDING"), gate["occurred_at"], _now(),
@@ -232,7 +237,7 @@ class LakebaseStore:
         for key in ("occurred_at", "updated_at"):
             if hasattr(gate[key], "isoformat"):
                 gate[key] = gate[key].isoformat()
-        for key in ("reason_codes_json", "hard_stop_codes_json"):
+        for key in ("evidence_json", "reason_codes_json", "hard_stop_codes_json"):
             value = gate.pop(key)
             gate[key.removesuffix("_json")] = json.loads(value) if isinstance(value, str) else value
         return gate

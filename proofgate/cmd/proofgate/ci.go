@@ -334,15 +334,23 @@ func appendGitHubSummary(path string, passport contracts.ChangePassport, result 
 	_, _ = fmt.Fprintf(&summary, "| Hard stops | %d |\n", len(result.HardStops))
 	_, _ = fmt.Fprintf(&summary, "| Entire checkpoint | `%s` |\n", markdownCell(passport.Change.CheckpointID, "missing"))
 	_, _ = fmt.Fprintf(&summary, "| Source adapter | %s |\n", markdownCell(passport.Authoring.SourceAdapter, "unknown"))
+	_, _ = fmt.Fprintf(&summary, "| Agent / model | %s / %s |\n", markdownCell(passport.Authoring.AgentFamily, "unknown"), markdownCell(passport.Authoring.ModelFamily, "unknown"))
+	_, _ = fmt.Fprintf(&summary, "| Sessions / handoffs | %d / %d |\n", passport.Authoring.SessionCount, passport.Authoring.HandoffCount)
+	_, _ = fmt.Fprintf(&summary, "| Tool categories | %s |\n", markdownList(passport.Authoring.ToolCategories, "none reported"))
 	_, _ = fmt.Fprintf(&summary, "| Provenance complete | %t |\n", passport.Authoring.ProvenanceComplete)
-	_, _ = fmt.Fprintf(&summary, "| Change size | %d files / %d changed lines |\n", len(passport.Impact.ChangedFiles), passport.Impact.ChangedLineCount)
+	_, _ = fmt.Fprintf(&summary, "| Change size | %d files / %d changed lines / %d impacted entities |\n", len(passport.Impact.ChangedFiles), passport.Impact.ChangedLineCount, len(passport.Impact.ImpactedEntities))
 	_, _ = fmt.Fprintf(&summary, "| Impact analysis | %s (complete: %t) |\n", markdownCell(passport.Impact.AnalysisSource, "unknown"), passport.Impact.AnalysisComplete)
-	_, _ = fmt.Fprintf(&summary, "| Maximum dependents | %d |\n", passport.Impact.MaxDependentCount)
-	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed |\n", passport.Tests.Total, passport.Tests.Failed)
+	_, _ = fmt.Fprintf(&summary, "| Dependency depth / maximum dependents | %d / %d |\n", passport.Impact.DependencyDepth, passport.Impact.MaxDependentCount)
+	_, _ = fmt.Fprintf(&summary, "| Sensitive components | %s |\n", markdownList(passport.Impact.SensitiveComponents, "none"))
+	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed / required suite missing: %t |\n", passport.Tests.Total, passport.Tests.Failed, passport.Tests.RequiredTestMissing)
 	_, _ = fmt.Fprintf(&summary, "| Databricks | %s |\n", markdownText(databricks.Status))
 	if passport.History.Available {
 		_, _ = fmt.Fprintf(&summary, "| Historical baseline | %d changes over %d days |\n", passport.History.BaselineChangeCount, passport.History.BaselineWindowDays)
+		_, _ = fmt.Fprintf(&summary, "| Similar changes / failure rate | %d / %.0f%% |\n", passport.History.SimilarChangeCount, passport.History.SimilarFailureRate*100)
+		_, _ = fmt.Fprintf(&summary, "| Component failure rate | %.0f%% |\n", passport.History.ComponentFailureRate*100)
 	}
+	_, _ = fmt.Fprintf(&summary, "| Policy / fingerprint | %s / `%s` |\n", markdownCell(result.PolicyVersion, "unknown"), markdownCell(result.PassportFingerprint, "unavailable"))
+	_, _ = fmt.Fprintf(&summary, "| Privacy boundary | %s; %d fields dropped |\n", markdownCell(passport.Safety.RedactionVersion, "unknown"), passport.Safety.DroppedFieldCount)
 	if databricks.Review != nil {
 		_, _ = fmt.Fprintf(&summary, "| Human review | %s by %s |\n", markdownText(databricks.Review.Action), markdownText(databricks.Review.ActorID))
 	}
@@ -369,6 +377,16 @@ func appendGitHubSummary(path string, passport contracts.ChangePassport, result 
 		}
 		summary.WriteString("\n</details>\n\n")
 	}
+	if len(result.RecommendedReviewFocus) > 0 || len(result.Uncertainties) > 0 {
+		summary.WriteString("<details><summary>Review focus and uncertainty</summary>\n\n")
+		for _, focus := range result.RecommendedReviewFocus {
+			_, _ = fmt.Fprintf(&summary, "- Review: %s\n", markdownText(focus))
+		}
+		for _, uncertainty := range result.Uncertainties {
+			_, _ = fmt.Fprintf(&summary, "- Uncertainty: %s\n", markdownText(uncertainty))
+		}
+		summary.WriteString("\n</details>\n\n")
+	}
 	summary.WriteString("> The verdict is deterministic. AI-generated explanations are advisory and cannot change it.\n")
 	return appendFile(path, summary.String())
 }
@@ -389,6 +407,17 @@ func markdownCell(value, fallback string) string {
 		value = fallback
 	}
 	return markdownText(value)
+}
+
+func markdownList(values []string, fallback string) string {
+	if len(values) == 0 {
+		return markdownText(fallback)
+	}
+	escaped := make([]string, 0, len(values))
+	for _, value := range values {
+		escaped = append(escaped, "`"+markdownText(value)+"`")
+	}
+	return strings.Join(escaped, ", ")
 }
 
 func markdownText(value string) string {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -15,7 +16,7 @@ from unittest.mock import patch
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
-from app import create_server  # noqa: E402
+from app import create_runtime_server, create_server  # noqa: E402
 from decision_sync import DECISION_MERGE, DecisionPublisher  # noqa: E402
 from explainer import _content_text  # noqa: E402
 from github_dispatch import GitHubWorkflowDispatcher  # noqa: E402
@@ -146,10 +147,17 @@ class StoreTests(unittest.TestCase):
         refreshed = {key: value for key, value in gate.items() if key != "decisions"}
         refreshed["risk_score"] = 47
         refreshed["reason_codes"] = ["HISTORICAL_RISK_INCREASED"]
+        refreshed["evidence"] = {
+            "agent_family": "codex",
+            "changed_line_count": 63,
+            "tool_categories": ["search", "shell"],
+        }
         refreshed["review_status"] = "PENDING"
         self.store.upsert_gates([refreshed])
         after = self.store.get_gate(gate["event_id"])
         self.assertEqual(after["risk_score"], 47)
+        self.assertEqual(after["evidence"]["agent_family"], "codex")
+        self.assertEqual(after["evidence"]["changed_line_count"], 63)
         self.assertEqual(after["review_status"], "APPROVED")
         self.assertEqual(after["version"], 2)
         self.assertEqual(len(after["decisions"]), 1)
@@ -172,12 +180,43 @@ class StoreTests(unittest.TestCase):
                 "provenance_complete": "true",
                 "reason_codes_json": '["REQUIRED_TEST_FAILED"]',
                 "hard_stop_codes_json": '["REQUIRED_TEST_FAILED"]',
+                "policy_version": "proofgate-default-v1",
+                "agent_family": "codex",
+                "model_family": "gpt",
+                "changed_line_count": "42",
+                "impacted_entity_count": "9",
+                "dependency_depth": "3",
+                "sensitive_components_json": '["payments"]',
+                "required_test_missing": "false",
+                "similar_change_count": "4",
+                "similar_failure_rate": "0.25",
+                "component_failure_rate": "0.5",
+                "history_snapshot_at": "2026-09-04 11:59:00+00:00",
+                "feature_generated_at": "2026-09-04 12:01:00+00:00",
+                "source_adapter": "github-actions",
+                "schema_version": "1.0",
+                "redaction_version": "proofgate-allowlist-v1",
+                "dropped_field_count": "8",
+                "payload_hash": "sha256:payload",
+                "session_count": "2",
+                "handoff_count": "1",
+                "tool_categories_json": '["search","shell"]',
+                "history_available": "true",
+                "baseline_change_count": "12",
+                "passport_fingerprint": "sha256:passport",
+                "safe_similarity_summary": "agent=codex decision=approval_required",
                 "occurred_at": "2026-09-04 12:00:00+00:00",
             }
         )
         self.assertEqual(gate["review_status"], "PENDING")
         self.assertEqual(gate["max_dependent_count"], 17)
         self.assertTrue(gate["impact_analysis_complete"])
+        self.assertEqual(gate["evidence"]["agent_family"], "codex")
+        self.assertEqual(gate["evidence"]["session_count"], 2)
+        self.assertEqual(gate["evidence"]["tool_categories"], ["search", "shell"])
+        self.assertEqual(gate["evidence"]["changed_line_count"], 42)
+        self.assertEqual(gate["evidence"]["similar_failure_rate"], 0.25)
+        self.assertEqual(gate["evidence"]["payload_hash"], "sha256:payload")
         self.assertNotIn("raw_prompt", gate)
         self.assertNotIn("source_code", gate)
 
@@ -227,6 +266,24 @@ class StoreTests(unittest.TestCase):
         ):
             finder = create_similarity_finder()
         self.assertIsInstance(finder, LocalSimilarityFinder)
+
+    def test_warehouse_cache_mode_does_not_seed_synthetic_gates(self) -> None:
+        cache_path = Path(self.temporary_directory.name) / "live-cache.db"
+        synchronizer = SimpleNamespace(sync=lambda _store: {"upserted": 0})
+        environment = {
+            "PROOFGATE_STORE": "warehouse-cache",
+            "PROOFGATE_DB_PATH": str(cache_path),
+        }
+        with patch.dict(os.environ, environment, clear=False), patch(
+            "app.create_synchronizer", return_value=synchronizer
+        ):
+            server = create_runtime_server("127.0.0.1", 0)
+        try:
+            self.assertEqual(server.data_mode, "databricks-cache")
+            self.assertEqual(server.store.list_gates(), [])
+            self.assertIs(server.synchronizer, synchronizer)
+        finally:
+            server.server_close()
 
     def test_explanation_extracts_final_text_without_reasoning(self) -> None:
         content = [
