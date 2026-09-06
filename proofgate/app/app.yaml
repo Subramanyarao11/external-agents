@@ -1,0 +1,20 @@
+command:
+  - python
+  - app.py
+env:
+  - name: PROOFGATE_STORE
+    value: lakebase
+  - name: PROOFGATE_LAKEBASE_ENDPOINT
+    valueFrom: proofgate-postgres
+  - name: PROOFGATE_WAREHOUSE_ID
+    valueFrom: proofgate-warehouse
+  - name: PROOFGATE_CATALOG
+    value: main
+  - name: PROOFGATE_SCHEMA
+    value: proofgate_dev
+  - name: PROOFGATE_SEARCH_INDEX
+    valueFrom: proofgate-search-index
+  - name: PROOFGATE_SEARCH_ENDPOINT
+    value: proofgate-similar-changes-dev
+  - name: PROOFGATE_EXPLANATION_MODEL
+    valueFrom: proofgate-explanation-model

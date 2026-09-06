@@ -1,0 +1,116 @@
+"""Import allowlisted gold features from Databricks SQL into review storage."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from typing import Any, Protocol
+
+
+IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+class GateSink(Protocol):
+    def upsert_gates(self, gates: list[dict[str, Any]]) -> dict[str, int]: ...
+
+
+class WarehouseSynchronizer:
+    def __init__(self, warehouse_id: str, catalog: str, schema: str):
+        if not warehouse_id.strip():
+            raise ValueError("warehouse_id is required")
+        for label, value in (("catalog", catalog), ("schema", schema)):
+            if not IDENTIFIER.fullmatch(value):
+                raise ValueError(f"unsafe {label} identifier")
+        from databricks.sdk import WorkspaceClient
+
+        self.workspace = WorkspaceClient()
+        self.warehouse_id = warehouse_id
+        self.catalog = catalog
+        self.schema = schema
+
+    def _query(self) -> list[dict[str, Any]]:
+        from databricks.sdk.service.sql import StatementState
+
+        statement = f"""
+            SELECT
+              event_id,
+              repo_id,
+              checkpoint_id,
+              coalesce(commit_sha, '') AS commit_sha,
+              decision AS automated_verdict,
+              risk_score,
+              changed_file_count,
+              test_total AS tests_total,
+              test_failed AS tests_failed,
+              provenance_complete,
+              to_json(reason_codes) AS reason_codes_json,
+              to_json(hard_stop_codes) AS hard_stop_codes_json,
+              CAST(occurred_at AS STRING) AS occurred_at
+            FROM `{self.catalog}`.`{self.schema}`.`gold_change_risk_features`
+            ORDER BY occurred_at DESC
+            LIMIT 500
+        """
+        response = self.workspace.statement_execution.execute_statement(
+            warehouse_id=self.warehouse_id,
+            statement=statement,
+            wait_timeout="30s",
+            row_limit=500,
+        )
+        if response.status is None or response.status.state != StatementState.SUCCEEDED:
+            state = response.status.state.value if response.status and response.status.state else "UNKNOWN"
+            raise RuntimeError(f"warehouse statement did not complete: {state}")
+        if not response.manifest or not response.manifest.schema or not response.result:
+            return []
+        names = [column.name for column in response.manifest.schema.columns or []]
+        return [dict(zip(names, values)) for values in response.result.data_array or []]
+
+    @staticmethod
+    def _gate(row: dict[str, Any]) -> dict[str, Any]:
+        verdict = row["automated_verdict"]
+        risk_score = int(row["risk_score"])
+        tests_failed = int(row["tests_failed"])
+        provenance_complete = str(row["provenance_complete"]).lower() == "true"
+        reason_codes = json.loads(row["reason_codes_json"] or "[]")
+        hard_stop_codes = json.loads(row["hard_stop_codes_json"] or "[]")
+        if hard_stop_codes:
+            summary = "Policy hard-stop requires accountable human review."
+        elif verdict == "WARN":
+            summary = "Policy signals recommend review before merge."
+        else:
+            summary = "Required provenance and test evidence satisfy policy."
+        return {
+            "event_id": row["event_id"],
+            "repo_id": row["repo_id"],
+            "checkpoint_id": row["checkpoint_id"],
+            "commit_sha": row["commit_sha"],
+            "automated_verdict": verdict,
+            "risk_score": risk_score,
+            "changed_file_count": int(row["changed_file_count"]),
+            "tests_total": int(row["tests_total"]),
+            "tests_failed": tests_failed,
+            "provenance_complete": provenance_complete,
+            "summary": summary,
+            "reason_codes": reason_codes,
+            "hard_stop_codes": hard_stop_codes,
+            "review_status": "AUTO_PASS" if verdict == "PASS" else "PENDING",
+            "occurred_at": row["occurred_at"],
+        }
+
+    def sync(self, sink: GateSink) -> dict[str, Any]:
+        rows = self._query()
+        gates = [self._gate(row) for row in rows]
+        result = sink.upsert_gates(gates)
+        return {**result, "source_rows": len(rows), "source": "databricks-sql"}
+
+
+def create_synchronizer() -> WarehouseSynchronizer | None:
+    warehouse_id = os.environ.get("PROOFGATE_WAREHOUSE_ID", "").strip()
+    if not warehouse_id:
+        return None
+    return WarehouseSynchronizer(
+        warehouse_id=warehouse_id,
+        catalog=os.environ.get("PROOFGATE_CATALOG", "main"),
+        schema=os.environ.get("PROOFGATE_SCHEMA", "proofgate_dev"),
+    )
+

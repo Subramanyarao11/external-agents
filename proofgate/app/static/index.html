@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>ProofGate Control Room</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail" aria-label="Primary navigation">
+        <a class="brand" href="/" aria-label="ProofGate home">
+          <span class="brand-mark" aria-hidden="true">PG</span>
+          <span>
+            <strong>ProofGate</strong>
+            <small>Control Room</small>
+          </span>
+        </a>
+
+        <nav>
+          <button class="nav-item is-active" type="button">
+            <span class="nav-icon">⌁</span>
+            Review queue
+            <span id="queue-count" class="nav-count">—</span>
+          </button>
+          <button class="nav-item" type="button" disabled title="Available in the next slice">
+            <span class="nav-icon">⌗</span>
+            Fleet signals
+          </button>
+          <button class="nav-item" type="button" disabled title="Available in the next slice">
+            <span class="nav-icon">↗</span>
+            Similar changes
+          </button>
+        </nav>
+
+        <div class="rail-footer">
+          <span class="status-dot"></span>
+          <div>
+            <strong id="data-mode-title">Local demo</strong>
+            <small id="data-mode-copy">Seeded, synthetic evidence</small>
+          </div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Engineering governance</p>
+            <h1>Review queue</h1>
+          </div>
+          <div class="topbar-actions">
+            <span id="data-mode-chip" class="demo-chip"><span></span> DEMO DATA</span>
+            <button id="reset-button" class="button button-subtle" type="button">Reset demo</button>
+            <button id="sync-button" class="button button-subtle" type="button" hidden>Sync evidence</button>
+          </div>
+        </header>
+
+        <section id="metrics" class="metrics" aria-label="Queue metrics">
+          <article class="metric-card metric-card-primary">
+            <span>Pending review</span>
+            <strong id="metric-pending">—</strong>
+            <small>Human decision required</small>
+          </article>
+          <article class="metric-card">
+            <span>Average risk</span>
+            <strong><span id="metric-risk">—</span><em>/100</em></strong>
+            <small>Deterministic policy score</small>
+          </article>
+          <article class="metric-card">
+            <span>Provenance</span>
+            <strong><span id="metric-provenance">—</span><em>%</em></strong>
+            <small>Entire checkpoint attached</small>
+          </article>
+          <article class="metric-card">
+            <span>Resolved</span>
+            <strong id="metric-resolved">—</strong>
+            <small>Approved or rejected</small>
+          </article>
+        </section>
+
+        <section class="workspace" aria-label="Gate review workspace">
+          <div class="queue-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Incoming changes</p>
+                <h2>Policy gates</h2>
+              </div>
+              <div class="filter" role="group" aria-label="Filter gates">
+                <button class="filter-button is-active" data-filter="ALL" type="button">All</button>
+                <button class="filter-button" data-filter="PENDING" type="button">Pending</button>
+                <button class="filter-button" data-filter="RESOLVED" type="button">Resolved</button>
+              </div>
+            </div>
+            <div id="gate-list" class="gate-list" aria-live="polite">
+              <div class="loading-card">Loading evidence…</div>
+            </div>
+          </div>
+
+          <aside id="evidence-panel" class="evidence-panel" aria-live="polite">
+            <div class="empty-state">
+              <span>⌁</span>
+              <h2>Select a policy gate</h2>
+              <p>Inspect its Entire provenance, test evidence, policy reasons, and review history.</p>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="decision-dialog">
+      <form id="decision-form" method="dialog">
+        <div class="dialog-heading">
+          <span id="dialog-symbol" class="dialog-symbol">✓</span>
+          <div>
+            <p class="eyebrow">Human checkpoint</p>
+            <h2 id="dialog-title">Approve change</h2>
+          </div>
+        </div>
+        <p id="dialog-copy" class="dialog-copy"></p>
+        <label>
+          Reviewer
+          <input id="actor-input" name="actor" value="demo.evaluator" maxlength="120" required />
+        </label>
+        <label>
+          Decision reason
+          <textarea id="reason-input" name="reason" maxlength="500" rows="4" required
+            placeholder="Record why this evidence is sufficient—or why the change must stop."></textarea>
+        </label>
+        <p id="dialog-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button id="cancel-decision" class="button button-subtle" type="button">Cancel</button>
+          <button id="confirm-decision" class="button button-primary" type="submit">Confirm approval</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

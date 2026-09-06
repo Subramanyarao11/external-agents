@@ -9,8 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/entireio/external-agents/proofgate/contracts"
 )
 
 type Config struct {
@@ -33,6 +36,18 @@ type IngestResult struct {
 	PayloadHash string `json:"payload_hash"`
 }
 
+type HistoryQuery struct {
+	RepositoryID        string
+	ExcludeEventID      string
+	Before              time.Time
+	SnapshotAt          time.Time
+	BaselineWindowDays  int
+	ChangedFileCount    int
+	ImpactedEntityCount int
+	DependencyDepth     int
+	SensitiveComponents []string
+}
+
 type statementParameter struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
@@ -48,6 +63,8 @@ type statementRequest struct {
 	Disposition string               `json:"disposition"`
 	Format      string               `json:"format"`
 	Parameters  []statementParameter `json:"parameters"`
+	RowLimit    int64                `json:"row_limit,omitempty"`
+	ByteLimit   int64                `json:"byte_limit,omitempty"`
 }
 
 type statementResponse struct {
@@ -58,6 +75,9 @@ type statementResponse struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	} `json:"status"`
+	Result struct {
+		DataArray [][]*string `json:"data_array"`
+	} `json:"result"`
 }
 
 func NewClient(config Config) (*Client, error) {
@@ -134,19 +154,180 @@ WHEN NOT MATCHED THEN INSERT (
 			{Name: "payload_json", Value: string(payload), Type: "STRING"},
 		},
 	}
-	response, err := client.execute(ctx, http.MethodPost, "/api/2.0/sql/statements", request)
+	response, err := client.runStatement(ctx, request)
 	if err != nil {
 		return IngestResult{}, err
+	}
+	return IngestResult{StatementID: response.StatementID, State: response.Status.State, EventID: event.EventID, PayloadHash: event.PayloadHash}, nil
+}
+
+func (client *Client) LookupHistory(ctx context.Context, query HistoryQuery) (contracts.HistoricalEvidence, error) {
+	query.RepositoryID = strings.TrimSpace(query.RepositoryID)
+	if query.RepositoryID == "" {
+		return contracts.HistoricalEvidence{}, errors.New("history repository id is required")
+	}
+	if query.Before.IsZero() || query.SnapshotAt.IsZero() {
+		return contracts.HistoricalEvidence{}, errors.New("history timestamps are required")
+	}
+	if query.BaselineWindowDays <= 0 {
+		query.BaselineWindowDays = 30
+	}
+	sensitiveJSON, err := json.Marshal(query.SensitiveComponents)
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	baselineStart := query.Before.AddDate(0, 0, -query.BaselineWindowDays)
+	request := statementRequest{
+		WarehouseID: client.config.WarehouseID,
+		Catalog:     client.config.Catalog,
+		Schema:      client.config.Schema,
+		Statement: `WITH history AS (
+  SELECT *
+  FROM gold_change_risk_features
+  WHERE repo_id = :repo_id
+    AND event_id <> :exclude_event_id
+    AND occurred_at >= CAST(:baseline_start AS TIMESTAMP)
+    AND occurred_at < CAST(:before AS TIMESTAMP)
+), similar AS (
+  SELECT *
+  FROM history
+  WHERE ABS(changed_file_count - CAST(:changed_file_count AS INT))
+          <= GREATEST(2, CEIL(CAST(:changed_file_count AS DOUBLE) * 0.5))
+    AND ABS(impacted_entity_count - CAST(:impacted_entity_count AS INT))
+          <= GREATEST(2, CEIL(CAST(:impacted_entity_count AS DOUBLE) * 0.5))
+    AND ABS(dependency_depth - CAST(:dependency_depth AS INT)) <= 1
+), component_history AS (
+  SELECT *
+  FROM history
+  WHERE CAST(:sensitive_component_count AS INT) > 0
+    AND arrays_overlap(
+      COALESCE(sensitive_components, CAST(array() AS ARRAY<STRING>)),
+      from_json(:sensitive_components_json, 'ARRAY<STRING>')
+    )
+), baseline_agg AS (
+  SELECT
+    COUNT(*) AS baseline_change_count,
+    COALESCE(percentile_approx(changed_file_count, 0.95), 0) AS normal_file_count_p95,
+    COALESCE(percentile_approx(impacted_entity_count, 0.95), 0) AS normal_impact_count_p95
+  FROM history
+), similar_agg AS (
+  SELECT
+    COUNT(*) AS similar_change_count,
+    COALESCE(AVG(CASE WHEN test_failed > 0 OR required_test_missing OR decision = 'APPROVAL_REQUIRED' THEN 1.0 ELSE 0.0 END), 0.0) AS similar_failure_rate,
+    GREATEST(COALESCE(SUM(CASE WHEN test_failed > 0 OR required_test_missing THEN 1 ELSE 0 END), 0) - 1, 0) AS repeated_failure_count,
+    to_json(slice(sort_array(collect_set(event_id)), 1, 10)) AS similar_evidence_ids
+  FROM similar
+), component_agg AS (
+  SELECT
+    COALESCE(AVG(CASE WHEN test_failed > 0 OR required_test_missing OR decision = 'APPROVAL_REQUIRED' THEN 1.0 ELSE 0.0 END), 0.0) AS component_failure_rate
+  FROM component_history
+)
+SELECT
+  baseline_change_count,
+  normal_file_count_p95,
+  normal_impact_count_p95,
+  similar_change_count,
+  similar_failure_rate,
+  component_failure_rate,
+  repeated_failure_count,
+  similar_evidence_ids
+FROM baseline_agg
+CROSS JOIN similar_agg
+CROSS JOIN component_agg`,
+		WaitTimeout: "50s",
+		Disposition: "INLINE",
+		Format:      "JSON_ARRAY",
+		RowLimit:    1,
+		ByteLimit:   16 << 10,
+		Parameters: []statementParameter{
+			{Name: "repo_id", Value: query.RepositoryID, Type: "STRING"},
+			{Name: "exclude_event_id", Value: strings.TrimSpace(query.ExcludeEventID), Type: "STRING"},
+			{Name: "baseline_start", Value: baselineStart.UTC().Format(time.RFC3339Nano), Type: "STRING"},
+			{Name: "before", Value: query.Before.UTC().Format(time.RFC3339Nano), Type: "STRING"},
+			{Name: "changed_file_count", Value: fmt.Sprintf("%d", query.ChangedFileCount), Type: "INT"},
+			{Name: "impacted_entity_count", Value: fmt.Sprintf("%d", query.ImpactedEntityCount), Type: "INT"},
+			{Name: "dependency_depth", Value: fmt.Sprintf("%d", query.DependencyDepth), Type: "INT"},
+			{Name: "sensitive_component_count", Value: fmt.Sprintf("%d", len(query.SensitiveComponents)), Type: "INT"},
+			{Name: "sensitive_components_json", Value: string(sensitiveJSON), Type: "STRING"},
+		},
+	}
+	response, err := client.runStatement(ctx, request)
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	if len(response.Result.DataArray) != 1 {
+		return contracts.HistoricalEvidence{}, fmt.Errorf("history query returned %d rows, want 1", len(response.Result.DataArray))
+	}
+	row := response.Result.DataArray[0]
+	if len(row) != 8 {
+		return contracts.HistoricalEvidence{}, fmt.Errorf("history query returned %d columns, want 8", len(row))
+	}
+	baselineCount, err := parseIntCell(row[0], "baseline_change_count")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	fileP95, err := parseFloatCell(row[1], "normal_file_count_p95")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	impactP95, err := parseFloatCell(row[2], "normal_impact_count_p95")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	similarCount, err := parseIntCell(row[3], "similar_change_count")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	similarFailureRate, err := parseFloatCell(row[4], "similar_failure_rate")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	componentFailureRate, err := parseFloatCell(row[5], "component_failure_rate")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	repeatedFailures, err := parseIntCell(row[6], "repeated_failure_count")
+	if err != nil {
+		return contracts.HistoricalEvidence{}, err
+	}
+	evidenceIDs := []string{}
+	if row[7] != nil && strings.TrimSpace(*row[7]) != "" {
+		if err := json.Unmarshal([]byte(*row[7]), &evidenceIDs); err != nil {
+			return contracts.HistoricalEvidence{}, fmt.Errorf("parse similar_evidence_ids: %w", err)
+		}
+	}
+	if len(evidenceIDs) > 20 {
+		return contracts.HistoricalEvidence{}, errors.New("history query returned too many evidence ids")
+	}
+	return contracts.HistoricalEvidence{
+		Available:            true,
+		SnapshotAt:           query.SnapshotAt.UTC(),
+		BaselineWindowDays:   query.BaselineWindowDays,
+		BaselineChangeCount:  baselineCount,
+		NormalFileCountP95:   fileP95,
+		NormalImpactCountP95: impactP95,
+		SimilarChangeCount:   similarCount,
+		SimilarFailureRate:   similarFailureRate,
+		ComponentFailureRate: componentFailureRate,
+		RepeatedFailureCount: repeatedFailures,
+		SimilarEvidenceIDs:   evidenceIDs,
+	}, nil
+}
+
+func (client *Client) runStatement(ctx context.Context, request statementRequest) (statementResponse, error) {
+	response, err := client.execute(ctx, http.MethodPost, "/api/2.0/sql/statements", request)
+	if err != nil {
+		return statementResponse{}, err
 	}
 	for response.Status.State == "PENDING" || response.Status.State == "RUNNING" {
 		select {
 		case <-ctx.Done():
-			return IngestResult{}, ctx.Err()
+			return statementResponse{}, ctx.Err()
 		case <-time.After(500 * time.Millisecond):
 		}
 		response, err = client.execute(ctx, http.MethodGet, "/api/2.0/sql/statements/"+url.PathEscape(response.StatementID), nil)
 		if err != nil {
-			return IngestResult{}, err
+			return statementResponse{}, err
 		}
 	}
 	if response.Status.State != "SUCCEEDED" {
@@ -154,9 +335,37 @@ WHEN NOT MATCHED THEN INSERT (
 		if response.Status.Error != nil && response.Status.Error.Message != "" {
 			message = response.Status.Error.Message
 		}
-		return IngestResult{}, fmt.Errorf("%s (state=%s, statement_id=%s)", message, response.Status.State, response.StatementID)
+		return statementResponse{}, fmt.Errorf("%s (state=%s, statement_id=%s)", message, response.Status.State, response.StatementID)
 	}
-	return IngestResult{StatementID: response.StatementID, State: response.Status.State, EventID: event.EventID, PayloadHash: event.PayloadHash}, nil
+	return response, nil
+}
+
+func parseIntCell(cell *string, name string) (int, error) {
+	if cell == nil {
+		return 0, fmt.Errorf("history %s is null", name)
+	}
+	value, err := strconv.Atoi(*cell)
+	if err != nil {
+		return 0, fmt.Errorf("parse history %s: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("history %s cannot be negative", name)
+	}
+	return value, nil
+}
+
+func parseFloatCell(cell *string, name string) (float64, error) {
+	if cell == nil {
+		return 0, fmt.Errorf("history %s is null", name)
+	}
+	value, err := strconv.ParseFloat(*cell, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse history %s: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("history %s cannot be negative", name)
+	}
+	return value, nil
 }
 
 func (client *Client) execute(ctx context.Context, method, path string, body any) (statementResponse, error) {
