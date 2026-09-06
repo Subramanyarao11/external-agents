@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Any, Protocol
 
 
@@ -16,22 +17,38 @@ class GateSink(Protocol):
 
 
 class WarehouseSynchronizer:
-    def __init__(self, warehouse_id: str, catalog: str, schema: str):
+    def __init__(
+        self,
+        warehouse_id: str,
+        catalog: str,
+        schema: str,
+        *,
+        workspace: Any | None = None,
+        poll_timeout_seconds: float = 90,
+        poll_interval_seconds: float = 0.5,
+    ):
         if not warehouse_id.strip():
             raise ValueError("warehouse_id is required")
         for label, value in (("catalog", catalog), ("schema", schema)):
             if not IDENTIFIER.fullmatch(value):
                 raise ValueError(f"unsafe {label} identifier")
-        from databricks.sdk import WorkspaceClient
+        if workspace is None:
+            from databricks.sdk import WorkspaceClient
 
-        self.workspace = WorkspaceClient()
+            workspace = WorkspaceClient()
+        self.workspace = workspace
         self.warehouse_id = warehouse_id
         self.catalog = catalog
         self.schema = schema
+        self.poll_timeout_seconds = poll_timeout_seconds
+        self.poll_interval_seconds = poll_interval_seconds
+
+    @staticmethod
+    def _state(response: Any) -> str:
+        state = getattr(getattr(response, "status", None), "state", None)
+        return str(getattr(state, "value", state) or "UNKNOWN")
 
     def _query(self) -> list[dict[str, Any]]:
-        from databricks.sdk.service.sql import StatementState
-
         statement = f"""
             SELECT
               event_id,
@@ -60,9 +77,17 @@ class WarehouseSynchronizer:
             wait_timeout="30s",
             row_limit=500,
         )
-        if response.status is None or response.status.state != StatementState.SUCCEEDED:
-            state = response.status.state.value if response.status and response.status.state else "UNKNOWN"
-            raise RuntimeError(f"warehouse statement did not complete: {state}")
+        deadline = time.monotonic() + self.poll_timeout_seconds
+        while self._state(response) in {"PENDING", "RUNNING"}:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("warehouse evidence query timed out")
+            if not response.statement_id:
+                raise RuntimeError("warehouse evidence query returned no statement id")
+            time.sleep(self.poll_interval_seconds)
+            response = self.workspace.statement_execution.get_statement(response.statement_id)
+        state = self._state(response)
+        if state != "SUCCEEDED":
+            raise RuntimeError(f"warehouse statement did not succeed: {state}")
         if not response.manifest or not response.manifest.schema or not response.result:
             return []
         names = [column.name for column in response.manifest.schema.columns or []]

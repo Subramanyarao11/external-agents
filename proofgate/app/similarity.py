@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any, Protocol
 
 
@@ -124,6 +125,12 @@ def create_similarity_finder() -> SimilarChangeFinder:
     endpoint = os.environ.get("PROOFGATE_SEARCH_ENDPOINT", "").strip()
     index = os.environ.get("PROOFGATE_SEARCH_INDEX", "").strip()
     if endpoint and index:
-        return DatabricksSimilarityFinder(endpoint, index)
+        try:
+            return DatabricksSimilarityFinder(endpoint, index)
+        except Exception as error:  # provider auth/config errors must not stop reviews
+            print(
+                "Databricks AI Search is unavailable; using deterministic local "
+                f"similarity ({type(error).__name__}).",
+                file=sys.stderr,
+            )
     return LocalSimilarityFinder()
-
