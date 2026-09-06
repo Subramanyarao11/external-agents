@@ -1,7 +1,3 @@
-One stale sentence remains in BUILDATHON.md line 148: it still says an incomplete tail only yields partial output "after at least one complete JSONL record." That is now false after the final hardening. Replace it with wording that any genuinely unterminated final record yields all messages parsed so far, including an empty partial result when the first record is incomplete. Check for any other stale copy of the old limitation, run git diff --check and the focused curveball tests, then commit this documentation correction as a transparent final evidence-doc fix so Entire checkpoints it. Do not push or merge.
-
----
-
 New verified evidence after the last checkpoint: I installed the repository-declared external-agents-tests via mise and ran:
 GOCACHE=/private/tmp/external-agents-compliance-go-cache go build -o /private/tmp/entire-agent-github-actions-curveball ./cmd/entire-agent-github-actions
 mise exec -- ./scripts/verify-compliance.sh /private/tmp/entire-agent-github-actions-curveball
