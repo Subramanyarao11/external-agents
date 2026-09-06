@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "f4b82b04ce34",
+  "strategy": "manual-commit",
+  "branch": "baseline/02-control-room",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/api.md",
+    "docs/architecture.md",
+    "docs/authentication.md",
+    "docs/database.md",
+    "docs/deployment.md",
+    "docs/development.md",
+    "docs/overview.md",
+    "docs/project-structure.md",
+    "docs/testing.md",
+    "docs/troubleshooting.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f4/b82b04ce34/0/metadata.json",
+      "transcript": "/f4/b82b04ce34/0/full.jsonl",
+      "compact_transcript": "/f4/b82b04ce34/0/transcript.jsonl",
+      "content_hash": "/f4/b82b04ce34/0/content_hash.txt",
+      "prompt": "/f4/b82b04ce34/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 65503,
+    "cache_read_tokens": 3465921,
+    "output_tokens": 26632,
+    "api_call_count": 34
+  }
+}

@@ -1,0 +1,93 @@
+<task-notification>
+<task-id>ba1e581</task-id>
+<output-file>/private/tmp/claude-502/-Users-daksh-GolandProjects-external-agents/tasks/ba1e581.output</output-file>
+<status>completed</status>
+<summary>Background command "Authenticate GitHub CLI" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-502/-Users-daksh-GolandProjects-external-agents/tasks/ba1e581.output
+
+---
+
+once go into the main branch, and check why its showing the commits from the 4th of september, why is it being added, as it was not visible before, it became visible after the above work
+
+---
+
+is there any way to remove that history and make it on the 6th september?
+
+---
+
+no but I have to find a way around this, as I can't show these commmits
+
+---
+
+we have to do it
+
+---
+
+okay so you know the context of what the project is
+
+You have to make the documentation to be submitted for the demo purpose
+
+so make sure that you have good skills like below
+
+Analyze this entire project/codebase and create **clear, production-quality developer documentation**.
+
+### First, analyze
+
+Inspect:
+
+* Project structure and architecture
+* APIs/routes
+* Business logic
+* Database/models/migrations
+* Authentication/authorization
+* External integrations
+* Configuration/environment variables
+* Tests
+* Docker/CI/CD/deployment
+* Existing documentation
+
+### Then document
+
+Create/update:
+
+```text
+docs/
+├── overview.md
+├── architecture.md
+├── project-structure.md
+├── api.md
+├── database.md
+├── authentication.md
+├── development.md
+├── testing.md
+├── deployment.md
+└── troubleshooting.md
+```
+
+Include Mermaid diagrams for important architecture, request-flow, and database relationships where useful.
+
+### Rules
+
+* **Codebase is the source of truth.**
+* Do not invent functionality, APIs, configuration, or business rules.
+* Reference relevant files/functions when explaining implementation.
+* Never expose secrets or credentials.
+* Clearly mark anything uncertain as `TODO: Needs verification`.
+* Keep documentation practical and easy for a new developer to follow.
+* Avoid generic explanations when project-specific information is available.
+
+### Final verification
+
+After writing the documentation, cross-check it against the codebase and fix inaccuracies.
+
+Finally, provide a short summary of:
+
+1. Documentation created
+2. Architecture discovered
+3. Important workflows
+4. Missing/uncertain information
+5. Recommended improvements
+
+
+Genreate a good documentation file
