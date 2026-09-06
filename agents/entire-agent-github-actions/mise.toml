@@ -1,0 +1,10 @@
+[tools]
+go = "1.26.0"
+
+[tasks.build]
+description = "Build the entire-agent-github-actions binary"
+run = "go build -o entire-agent-github-actions ./cmd/entire-agent-github-actions"
+
+[tasks.test]
+description = "Run unit tests"
+run = "go test ./..."

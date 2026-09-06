@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "event_id": "evt-demo-auth-007",
+  "occurred_at": "2026-09-04T12:00:00Z",
+  "repository": {
+    "id": "demo/mobile-shop",
+    "opted_in": true,
+    "is_public": true
+  },
+  "change": {
+    "commit_sha": "cb77e12",
+    "checkpoint_id": "01PROOFGATEAUTH000000000007",
+    "intent_summary": "Refactor login token refresh",
+    "ai_authored": true
+  },
+  "authoring": {
+    "source_adapter": "github-actions@1",
+    "agent_family": "claude-code-action",
+    "model_family": "sonnet",
+    "session_count": 3,
+    "handoff_count": 3,
+    "tool_categories": ["read", "edit", "shell", "test"],
+    "provenance_complete": true
+  },
+  "impact": {
+    "changed_files": [
+      "src/auth/token.ts",
+      "src/auth/session.ts",
+      "src/network/client.ts",
+      "src/storage/secure.ts",
+      "src/screens/Login.tsx",
+      "tests/auth/token.test.ts"
+    ],
+    "changed_line_count": 214,
+    "impacted_entities": [
+      "TokenManager",
+      "SessionStore",
+      "APIClient",
+      "SecureStorage",
+      "LoginScreen",
+      "AccountRepository",
+      "CheckoutAPI"
+    ],
+    "dependency_depth": 5,
+    "sensitive_components": ["authentication", "secure-storage"],
+    "denied_components": []
+  },
+  "tests": {
+    "total": 24,
+    "failed": 0,
+    "required_test_missing": true,
+    "required_suites": ["unit", "auth-integration"],
+    "passed_suites": ["unit"]
+  },
+  "history": {
+    "available": true,
+    "snapshot_at": "2026-09-04T11:55:00Z",
+    "baseline_window_days": 30,
+    "baseline_change_count": 32,
+    "normal_file_count_p95": 3,
+    "normal_impact_count_p95": 4,
+    "similar_change_count": 6,
+    "similar_failure_rate": 0.5,
+    "component_failure_rate": 0.31,
+    "repeated_failure_count": 2,
+    "similar_evidence_ids": ["evt-auth-002", "evt-auth-004", "evt-auth-006"]
+  },
+  "safety": {
+    "secret_detected": false,
+    "redaction_version": "redact-v1",
+    "dropped_field_count": 5,
+    "raw_content_exported": false,
+    "explicit_content_consent": false
+  },
+  "evidence_ids": ["evt-demo-auth-007", "graph-snapshot-91", "test-run-913"]
+}
