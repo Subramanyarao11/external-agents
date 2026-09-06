@@ -452,7 +452,10 @@ of which the conflict resolution itself accounts for changes in `AGENT.md`,
   fix is preserved. The additional integration fixes extract `messageTypeSystem` for
   hosted `goconst`, accept an omitted Graph `warnings` array, include `../../app` in the
   Phase-2 bundle sync root, and select the workspace-available
-  `databricks-gpt-oss-20b` explanation endpoint.
+  `databricks-gpt-oss-20b` explanation endpoint. Hosted ProofGate then exposed that
+  Entire CLI `v0.10.5` requires Go `1.26.6`; the ProofGate module now declares that
+  compatible patch release so every workflow using its `go.mod` installs the same
+  supported toolchain.
 - Pre-fix hosted evidence: on the integration branch, CI and License Check passed; Lint
   failed only on the repeated `"system"` literal reported by `goconst`. No other hosted
   failure is attributed to this merge.
@@ -461,7 +464,7 @@ of which the conflict resolution itself accounts for changes in `AGENT.md`,
   with complete Go parsing. A two-parent semantic comparison covered the batch 3
   transcript/capture paths, provider tests and fixtures, JUnit handling, Graph passport
   metadata, ProofGate review flow, and Phase-2 resources. A staged merge-tree semantic
-  diff against the first parent was confined to the six intended integration files and
+  diff against the first parent was confined to the intended integration files and
   reported no warnings. The broader Graph snapshot warnings were limited to unsupported
   JSONL semantic parsing and Databricks SQL grammar gaps around
   `IDENTIFIER(:parameter)`, `ARRAY<STRING>`, and `MERGE ... INSERT *`; direct source
