@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -16,7 +17,9 @@ sys.path.insert(0, str(APP_DIR))
 
 from app import create_server  # noqa: E402
 from decision_sync import DECISION_MERGE, DecisionPublisher  # noqa: E402
+from explainer import _content_text  # noqa: E402
 from github_dispatch import GitHubWorkflowDispatcher  # noqa: E402
+from similarity import LocalSimilarityFinder, create_similarity_finder  # noqa: E402
 from store import ReviewConflictError, SQLiteStore, ValidationError  # noqa: E402
 from warehouse_sync import WarehouseSynchronizer  # noqa: E402
 
@@ -177,6 +180,63 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(gate["impact_analysis_complete"])
         self.assertNotIn("raw_prompt", gate)
         self.assertNotIn("source_code", gate)
+
+    def test_warehouse_sync_waits_for_a_cold_warehouse(self) -> None:
+        class FakeExecution:
+            def __init__(self) -> None:
+                self.polls = 0
+
+            def execute_statement(self, **_kwargs):
+                return SimpleNamespace(
+                    statement_id="statement-1",
+                    status=SimpleNamespace(state=SimpleNamespace(value="PENDING")),
+                )
+
+            def get_statement(self, statement_id):
+                self.assert_statement_id = statement_id
+                self.polls += 1
+                return SimpleNamespace(
+                    statement_id=statement_id,
+                    status=SimpleNamespace(state=SimpleNamespace(value="SUCCEEDED")),
+                    manifest=SimpleNamespace(
+                        schema=SimpleNamespace(columns=[SimpleNamespace(name="event_id")])
+                    ),
+                    result=SimpleNamespace(data_array=[["event-1"]]),
+                )
+
+        execution = FakeExecution()
+        synchronizer = WarehouseSynchronizer(
+            "warehouse-1",
+            "main",
+            "proofgate",
+            workspace=SimpleNamespace(statement_execution=execution),
+            poll_interval_seconds=0,
+        )
+        self.assertEqual(synchronizer._query(), [{"event_id": "event-1"}])
+        self.assertEqual(execution.polls, 1)
+        self.assertEqual(execution.assert_statement_id, "statement-1")
+
+    def test_ai_search_configuration_failure_falls_back_locally(self) -> None:
+        environment = {
+            "PROOFGATE_SEARCH_ENDPOINT": "proofgate-search",
+            "PROOFGATE_SEARCH_INDEX": "main.proofgate.history",
+        }
+        with patch.dict("os.environ", environment, clear=False), patch(
+            "similarity.DatabricksSimilarityFinder",
+            side_effect=RuntimeError("credentials unavailable"),
+        ):
+            finder = create_similarity_finder()
+        self.assertIsInstance(finder, LocalSimilarityFinder)
+
+    def test_explanation_extracts_final_text_without_reasoning(self) -> None:
+        content = [
+            {"type": "reasoning", "summary": [{"text": "private reasoning"}]},
+            {"type": "output_text", "text": "Review is required. Verify the hard stop."},
+        ]
+        self.assertEqual(
+            _content_text(content),
+            "Review is required. Verify the hard stop.",
+        )
 
     def test_decision_publisher_binds_values_instead_of_interpolating(self) -> None:
         class FakeExecution:

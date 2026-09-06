@@ -186,7 +186,13 @@ async function explainGate(button, output) {
       method: "POST", body: "{}",
     });
     output.textContent = result.explanation;
-    button.textContent = result.generated_by === "deterministic-local-preview" ? "Local preview" : "Databricks AI";
+    if (String(result.generated_by).startsWith("databricks-")) {
+      button.textContent = "Databricks AI";
+    } else if (result.generated_by === "deterministic-fallback") {
+      button.textContent = "Safe fallback";
+    } else {
+      button.textContent = "Local preview";
+    }
   } catch (error) {
     output.textContent = `Explanation unavailable: ${error.message}`;
     button.textContent = "Try again";

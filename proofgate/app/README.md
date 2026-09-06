@@ -4,6 +4,8 @@ This is the human-review surface for ProofGate. It is functional, not a static
 dashboard: reviewers inspect a Change Passport, approve or reject it with a
 reason, and create an immutable, versioned audit event.
 
+**Live deployment:** [ProofGate Control Room on Databricks Apps](https://proofgate-control-room-7474650058385243.aws.databricksapps.com/)
+
 The local slice uses SQLite and four clearly labelled synthetic changes so the
 event demo remains reliable without Wi-Fi. It enforces the same invariants as
 the planned Lakebase deployment:
