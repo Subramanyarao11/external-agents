@@ -45,8 +45,9 @@ jobs:
           install_dir="$RUNNER_TEMP/proofgate-bin"
           mkdir -p "$install_dir"
           GOBIN="$install_dir" go install github.com/entireio/cli/cmd/entire@v0.10.5
-          go build -o "$install_dir/entire-agent-github-actions" \
-            ./agents/entire-agent-github-actions/cmd/entire-agent-github-actions
+          (cd agents/entire-agent-github-actions && \
+            go build -o "$install_dir/entire-agent-github-actions" \
+              ./cmd/entire-agent-github-actions)
           echo "$install_dir" >> "$GITHUB_PATH"
 
       - name: Install Cursor Agent CLI
