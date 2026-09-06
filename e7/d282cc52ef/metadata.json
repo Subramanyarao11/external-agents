@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "e7d282cc52ef",
+  "strategy": "manual-commit",
+  "branch": "baseline/01-foundation",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/d282cc52ef/0/metadata.json",
+      "transcript": "/e7/d282cc52ef/0/full.jsonl",
+      "compact_transcript": "/e7/d282cc52ef/0/transcript.jsonl",
+      "content_hash": "/e7/d282cc52ef/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4459,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 628480,
+    "output_tokens": 2279,
+    "api_call_count": 5
+  }
+}
