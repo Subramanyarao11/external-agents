@@ -20,6 +20,10 @@ const (
 	v2Model     = "acmecode-pro"
 )
 
+// The organizer fixture is preserved exactly except for the instructed
+// mechanical restoration of chat-rendered \_ sequences to ordinary underscores
+// and the three explicitly supplied timestamp corrections.
+
 var v2ModifiedFiles = []string{
 	"src/checkout/apply_coupon.ts",
 	"tests/checkout/apply_coupon.test.ts",
