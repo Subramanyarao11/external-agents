@@ -17,7 +17,11 @@ import (
 	"github.com/entireio/external-agents/agents/entire-agent-github-actions/internal/protocol"
 )
 
-const agentName = "github-actions"
+const (
+	agentName            = "github-actions"
+	messageTypeUser      = "user"
+	messageTypeAssistant = "assistant"
+)
 
 var fileModificationTools = map[string]struct{}{
 	"edit":         {},
@@ -203,7 +207,7 @@ func (a *Agent) ExtractPrompts(sessionRef string, offset int) ([]string, error) 
 	}
 	prompts := []string{}
 	for _, message := range fromOffset(messages, offset) {
-		if strings.ToLower(stringValue(message["type"])) != "user" {
+		if strings.ToLower(stringValue(message["type"])) != messageTypeUser {
 			continue
 		}
 		if text := messageText(message); text != "" {
@@ -228,7 +232,7 @@ func (a *Agent) ExtractSummary(sessionRef string) (string, bool, error) {
 				return result, true, nil
 			}
 		}
-		if strings.ToLower(stringValue(message["type"])) == "assistant" {
+		if strings.ToLower(stringValue(message["type"])) == messageTypeAssistant {
 			if text := messageText(message); text != "" {
 				return text, true, nil
 			}
@@ -272,7 +276,7 @@ func (a *Agent) CompactTranscript(sessionRef string) (protocol.CompactTranscript
 	var output bytes.Buffer
 	for _, message := range messages {
 		kind := strings.ToLower(stringValue(message["type"]))
-		if kind != "user" && kind != "assistant" {
+		if kind != messageTypeUser && kind != messageTypeAssistant {
 			continue
 		}
 		content := compactContent(message)
@@ -401,29 +405,29 @@ func normalizeEventRecord(record map[string]any) (sdkMessage, bool) {
 		message["type"] = "system"
 		message["subtype"] = "init"
 	case "user_prompt":
-		message["type"] = "user"
-		message["message"] = textMessage("user", stringValue(record["text"]))
+		message["type"] = messageTypeUser
+		message["message"] = textMessage(messageTypeUser, stringValue(record["text"]))
 	case "agent_response":
-		message["type"] = "assistant"
-		message["message"] = textMessage("assistant", stringValue(record["text"]))
+		message["type"] = messageTypeAssistant
+		message["message"] = textMessage(messageTypeAssistant, stringValue(record["text"]))
 	case "tool_call":
-		message["type"] = "assistant"
-		message["message"] = contentMessage("assistant", map[string]any{
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
 			"type":  "tool_use",
 			"id":    record["call_id"],
 			"name":  record["tool"],
 			"input": record["input"],
 		})
 	case "tool_result":
-		message["type"] = "user"
-		message["message"] = contentMessage("user", map[string]any{
+		message["type"] = messageTypeUser
+		message["message"] = contentMessage(messageTypeUser, map[string]any{
 			"type":        "tool_result",
 			"tool_use_id": record["call_id"],
 			"content":     record["output"],
 		})
 	case "file_read":
-		message["type"] = "assistant"
-		message["message"] = contentMessage("assistant", map[string]any{
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
 			"type": "tool_use",
 			"name": "file_read",
 			"input": map[string]any{
@@ -432,8 +436,8 @@ func normalizeEventRecord(record map[string]any) (sdkMessage, bool) {
 			},
 		})
 	case "file_changed":
-		message["type"] = "assistant"
-		message["message"] = contentMessage("assistant", map[string]any{
+		message["type"] = messageTypeAssistant
+		message["message"] = contentMessage(messageTypeAssistant, map[string]any{
 			"type": "tool_use",
 			"name": "file_changed",
 			"input": map[string]any{

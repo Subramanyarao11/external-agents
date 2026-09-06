@@ -61,6 +61,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - `entire status` reported that session tracking diverged from `HEAD` immediately after the intentional history merge; after the documentation commits and mirrored push, final status no longer reported that warning. The import ancestry is intact.
 - Batch 1 has one archived whitespace defect: `git diff --check main..HEAD` reports a new blank line at EOF in `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`.
 - The repository-declared `external-agents-tests` runner is installed through mise, and the shared compliance suite passes every applicable hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter are skipped.
+- The hosted curveball lint issue was remediated with localized, behavior-preserving changes; the pinned local `golangci-lint` gate and shared compliance suite pass. A hosted rerun is not claimed here.
 - The GitHub Actions e2e adapter deliberately has no hosted `RunPrompt` implementation, causing five tagged lifecycle scenarios to fail locally.
 - Databricks and Control Room behavior may depend on credentials or external infrastructure and must not be described as live until demonstrated.
 - Exact GitHub handles for Daksh and Rohit are pending.

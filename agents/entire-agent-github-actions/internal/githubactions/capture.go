@@ -167,6 +167,8 @@ func (a *Agent) dispatchLifecycle(hook string, input protocol.HookInputJSON) err
 	if binary == "" {
 		binary = "entire"
 	}
+	// #nosec G702 -- ENTIRE_CLI_PATH is an explicit executable override used by
+	// the integration harness; arguments are passed directly without a shell.
 	cmd := exec.Command(binary, "hooks", agentName, hook)
 	cmd.Dir = protocol.RepoRoot()
 	cmd.Env = os.Environ()
@@ -176,9 +178,9 @@ func (a *Agent) dispatchLifecycle(hook string, input protocol.HookInputJSON) err
 	if err := cmd.Run(); err != nil {
 		message := strings.TrimSpace(stderr.String())
 		if message != "" {
-			return fmt.Errorf("Entire %s hook failed: %w: %s", hook, err, message)
+			return fmt.Errorf("entire %s hook failed: %w: %s", hook, err, message)
 		}
-		return fmt.Errorf("Entire %s hook failed: %w", hook, err)
+		return fmt.Errorf("entire %s hook failed: %w", hook, err)
 	}
 	return nil
 }
