@@ -2,6 +2,37 @@
 
 This repository contains standalone external agent binaries that extend the [Entire CLI](https://github.com/entireio/cli) with support for additional AI coding agents.
 
+## ProofGate — Live Hackathon Build
+
+ProofGate is a deterministic governance gate for AI-authored code. It combines
+Entire checkpoints and Graph impact evidence with test results, Databricks
+historical signals, and accountable human review. Generated explanations are
+advisory; they can never change the policy verdict.
+
+**[Open the live ProofGate Control Room](https://proofgate-control-room-7474650058385243.aws.databricksapps.com/)**
+
+The deployed Control Room runs on Databricks Apps, uses Lakebase for
+transactional review state, reads governed evidence through a serverless SQL
+Warehouse, and writes versioned human decisions back to Delta. Its current live
+queue includes checkpoint `a00e1845ab7f` at exact commit
+`daaf860e5fb6dceb1ad60303f7a685186b66f3cb`.
+
+Databricks reviewers can also inspect:
+
+- [ProofGate Fleet Control dashboard](https://dbc-11c7c638-578e.cloud.databricks.com/dashboardsv3/01f1a9d837de10eb841fe23a5440d5f4/published?w=7474650058385243&o=7474650058385243)
+- [Ask ProofGate in Genie](https://dbc-11c7c638-578e.cloud.databricks.com/genie/rooms/01f1a9d837e41315aa1754b98e997808?w=7474650058385243&o=7474650058385243)
+- [Gold governed evidence in Unity Catalog](https://dbc-11c7c638-578e.cloud.databricks.com/explore/data/workspace/dev_imsmr17_proofgate_dev/gold_change_risk_features?o=7474650058385243&activeTab=sample)
+- [Completed Lakeflow pipeline](https://dbc-11c7c638-578e.cloud.databricks.com/pipelines/80d89bba-0803-4c8a-9343-02498c833832?w=7474650058385243&o=7474650058385243)
+
+Workspace resources require access to the hackathon Databricks workspace. For
+an offline fallback, run the explicitly labelled synthetic demo at
+`http://127.0.0.1:8000` using the instructions in
+[`proofgate/app/README.md`](proofgate/app/README.md).
+
+See [`proofgate/README.md`](proofgate/README.md) for the evaluator and CI flow,
+and [`proofgate/databricks/phase2/README.md`](proofgate/databricks/phase2/README.md)
+for the deployed Databricks architecture.
+
 ## What Are External Agents?
 
 External agents are standalone binaries (named `entire-agent-<name>`) that teach Entire CLI how to work with AI coding agents it doesn't natively support. When an external agent is installed on your `PATH`, Entire discovers it automatically and gains the ability to:

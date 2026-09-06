@@ -4,6 +4,15 @@ ProofGate turns an Entire-backed Change Passport into a reproducible engineering
 decision. The engine is deterministic: historical facts from Databricks may
 raise risk, but generated text can never change the verdict.
 
+## Live deployment
+
+- [ProofGate Control Room on Databricks Apps](https://proofgate-control-room-7474650058385243.aws.databricksapps.com/)
+- [ProofGate Fleet Control AI/BI dashboard](https://dbc-11c7c638-578e.cloud.databricks.com/dashboardsv3/01f1a9d837de10eb841fe23a5440d5f4/published?w=7474650058385243&o=7474650058385243)
+- [Ask ProofGate in Genie](https://dbc-11c7c638-578e.cloud.databricks.com/genie/rooms/01f1a9d837e41315aa1754b98e997808?w=7474650058385243&o=7474650058385243)
+
+The live application is backed by Lakebase and governed Delta evidence. The
+local Control Room remains an explicitly labelled, synthetic offline fallback.
+
 ## Run
 
 ```bash
