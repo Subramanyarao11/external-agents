@@ -58,38 +58,33 @@ resources:
       display_name: ProofGate review state
       pg_version: 17
       default_endpoint_settings:
-        autoscaling_limit_min_cu: 0.5
+        # Free Edition fixes Lakebase at 1 CU and a 300-second suspend timeout.
+        # Declaring those service defaults avoids perpetual bundle drift.
+        autoscaling_limit_min_cu: 1.0
         autoscaling_limit_max_cu: 1.0
         suspend_timeout_duration: 300s
-
-  postgres_branches:
-    production:
-      branch_id: production
-      parent: ${resources.postgres_projects.proofgate.name}
-      no_expiry: true
-      is_protected: true
-      replace_existing: true
 
   postgres_endpoints:
     primary:
       endpoint_id: primary
-      parent: ${resources.postgres_branches.production.name}
+      # Every Lakebase project creates this protected default branch. Reuse it;
+      # managing it as a replaceable resource would attempt an illegal delete.
+      parent: ${resources.postgres_projects.proofgate.name}/branches/production
       endpoint_type: ENDPOINT_TYPE_READ_WRITE
-      autoscaling_limit_min_cu: 0.5
+      autoscaling_limit_min_cu: 1.0
       autoscaling_limit_max_cu: 1.0
-      suspend_timeout_duration: 300s
       replace_existing: true
 
   postgres_roles:
     app_owner:
       role_id: proofgate-owner
-      parent: ${resources.postgres_branches.production.name}
+      parent: ${resources.postgres_projects.proofgate.name}/branches/production
       postgres_role: proofgate_owner
 
   postgres_databases:
     control_db:
       database_id: proofgate
-      parent: ${resources.postgres_branches.production.name}
+      parent: ${resources.postgres_projects.proofgate.name}/branches/production
       postgres_database: ${var.database_name}
       role: ${resources.postgres_roles.app_owner.id}
 
@@ -129,7 +124,9 @@ resources:
 
   vector_search_indexes:
     similar_index:
-      name: ${var.catalog}.${var.schema}.similar_change_index
+      # Version the index name so an interrupted Databricks deletion cannot
+      # block a deterministic redeploy on the same workspace.
+      name: ${var.catalog}.${var.schema}.similar_change_index_v2
       endpoint_name: ${resources.vector_search_endpoints.similar_endpoint.name}
       primary_key: event_id
       index_type: DELTA_SYNC
@@ -266,7 +263,7 @@ resources:
       resources:
         - name: proofgate-postgres
           postgres:
-            branch: ${resources.postgres_branches.production.name}
+            branch: ${resources.postgres_projects.proofgate.name}/branches/production
             database: ${resources.postgres_databases.control_db.name}
             permission: CAN_CONNECT_AND_CREATE
         - name: proofgate-warehouse
