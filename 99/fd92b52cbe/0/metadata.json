@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "99fd92b52cbe",
+  "session_id": "01a07602-5a13-7933-a5fb-5ae48de98ba1",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T09:27:17.808898Z",
+  "branch": "fix/batch3-live-readiness",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md",
+    "proofgate/go.mod"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "2d4cca37a8a3",
+  "checkpoint_transcript_start": 234,
+  "transcript_lines_at_start": 234,
+  "compact_transcript_start": 31,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": -1258752,
+    "output_tokens": -8549,
+    "api_call_count": 6
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T09:27:17.755687Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 3,
+    "total_committed": 0,
+    "total_lines_changed": 3,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 18,
+      "user_lines_removed": 3,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "BUILDATHON.md": 5,
+        "proofgate/.env.databricks.local": 12,
+        "proofgate/go.mod": 1
+      },
+      "user_removed_per_file": {
+        "BUILDATHON.md": 2,
+        "proofgate/go.mod": 1
+      }
+    }
+  ]
+}

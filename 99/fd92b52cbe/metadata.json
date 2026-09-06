@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "99fd92b52cbe",
+  "strategy": "manual-commit",
+  "branch": "fix/batch3-live-readiness",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md",
+    "proofgate/go.mod"
+  ],
+  "sessions": [
+    {
+      "metadata": "/99/fd92b52cbe/0/metadata.json",
+      "transcript": "/99/fd92b52cbe/0/full.jsonl",
+      "compact_transcript": "/99/fd92b52cbe/0/transcript.jsonl",
+      "content_hash": "/99/fd92b52cbe/0/content_hash.txt",
+      "prompt": "/99/fd92b52cbe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": -1258752,
+    "output_tokens": -8549,
+    "api_call_count": 6
+  }
+}
