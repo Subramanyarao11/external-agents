@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS gold_change_risk_features (
   changed_line_count INT,
   impacted_entity_count INT,
   dependency_depth INT,
+  sensitive_components ARRAY<STRING> COMMENT 'Allowlisted component categories only; never source paths',
   test_total INT,
   test_failed INT,
   required_test_missing BOOLEAN,

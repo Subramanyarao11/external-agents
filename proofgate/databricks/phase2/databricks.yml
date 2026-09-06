@@ -1,0 +1,167 @@
+bundle:
+  name: entire-proofgate-phase2
+
+variables:
+  catalog:
+    description: Existing Unity Catalog catalog containing Phase 1 tables
+    default: main
+  schema:
+    description: Existing ProofGate schema created by Phase 1
+    default: proofgate_dev
+  warehouse_id:
+    description: Existing serverless SQL warehouse ID
+  project_id:
+    description: Lakebase project ID; lowercase and hyphen-delimited
+    default: proofgate-hackathon
+  database_name:
+    description: Lakebase Postgres database for transactional review state
+    default: proofgate
+  app_name:
+    description: Workspace-unique Databricks App name
+    default: proofgate-control-room
+  embedding_model_endpoint:
+    description: Foundation Model API endpoint used to embed safe change summaries
+    default: databricks-qwen3-embedding-0-6b
+  explanation_model_endpoint:
+    description: Pay-per-token endpoint used only for non-authoritative explanations
+    default: databricks-gpt-5-6-luna
+
+resources:
+  postgres_projects:
+    proofgate:
+      project_id: ${var.project_id}
+      display_name: ProofGate review state
+      pg_version: 17
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: 0.5
+        autoscaling_limit_max_cu: 1.0
+        suspend_timeout_duration: 300s
+
+  postgres_branches:
+    production:
+      branch_id: production
+      parent: ${resources.postgres_projects.proofgate.name}
+      no_expiry: true
+      is_protected: true
+      replace_existing: true
+
+  postgres_endpoints:
+    primary:
+      endpoint_id: primary
+      parent: ${resources.postgres_branches.production.name}
+      endpoint_type: ENDPOINT_TYPE_READ_WRITE
+      autoscaling_limit_min_cu: 0.5
+      autoscaling_limit_max_cu: 1.0
+      suspend_timeout_duration: 300s
+      replace_existing: true
+
+  postgres_roles:
+    app_owner:
+      role_id: proofgate-owner
+      parent: ${resources.postgres_branches.production.name}
+      postgres_role: proofgate_owner
+
+  postgres_databases:
+    control_db:
+      database_id: proofgate
+      parent: ${resources.postgres_branches.production.name}
+      postgres_database: ${var.database_name}
+      role: ${resources.postgres_roles.app_owner.id}
+
+  pipelines:
+    live_features:
+      name: proofgate-live-features-${bundle.target}
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      continuous: false
+      photon: true
+      configuration:
+        proofgate.catalog: ${var.catalog}
+        proofgate.schema: ${var.schema}
+      libraries:
+        - file:
+            path: ./pipeline/proofgate_features.py
+
+  vector_search_endpoints:
+    similar_endpoint:
+      name: proofgate-similar-changes-${bundle.target}
+      endpoint_type: STANDARD
+
+  vector_search_indexes:
+    similar_index:
+      name: ${var.catalog}.${var.schema}.similar_change_index
+      endpoint_name: ${resources.vector_search_endpoints.similar_endpoint.name}
+      primary_key: event_id
+      index_type: DELTA_SYNC
+      delta_sync_index_spec:
+        source_table: ${var.catalog}.${var.schema}.similar_change_documents
+        pipeline_type: TRIGGERED
+        embedding_source_columns:
+          - name: similarity_summary
+            embedding_model_endpoint_name: ${var.embedding_model_endpoint}
+        columns_to_sync:
+          - repo_id
+          - checkpoint_id
+          - occurred_at
+          - decision
+          - risk_score
+          - source_event_id
+
+  apps:
+    control_app:
+      name: ${var.app_name}
+      description: Human review and historical evidence surface for Entire ProofGate
+      source_code_path: ../../app
+      config:
+        command:
+          - python
+          - app.py
+        env:
+          - name: PROOFGATE_STORE
+            value: lakebase
+          - name: PROOFGATE_LAKEBASE_ENDPOINT
+            value_from: proofgate-postgres
+          - name: PROOFGATE_WAREHOUSE_ID
+            value_from: proofgate-warehouse
+          - name: PROOFGATE_CATALOG
+            value: ${var.catalog}
+          - name: PROOFGATE_SCHEMA
+            value: ${var.schema}
+          - name: PROOFGATE_SEARCH_INDEX
+            value_from: proofgate-search-index
+          - name: PROOFGATE_SEARCH_ENDPOINT
+            value: ${resources.vector_search_endpoints.similar_endpoint.name}
+          - name: PROOFGATE_EXPLANATION_MODEL
+            value_from: proofgate-explanation-model
+      resources:
+        - name: proofgate-postgres
+          postgres:
+            branch: ${resources.postgres_branches.production.name}
+            database: ${resources.postgres_databases.control_db.name}
+            permission: CAN_CONNECT_AND_CREATE
+        - name: proofgate-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: proofgate-search-index
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${resources.vector_search_indexes.similar_index.name}
+            permission: SELECT
+        - name: proofgate-explanation-model
+          serving_endpoint:
+            name: ${var.explanation_model_endpoint}
+            permission: CAN_QUERY
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+  demo:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

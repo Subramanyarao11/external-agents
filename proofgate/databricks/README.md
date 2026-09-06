@@ -30,3 +30,10 @@ PROOFGATE_DATABRICKS_SCHEMA
 No host, token, warehouse ID, customer repository name, raw prompt, or source
 path belongs in git. Use `proofgate export --dry-run` to inspect exactly what
 would cross the network.
+
+In CI, `databricks-mode: roundtrip` closes the feedback loop: ProofGate queries
+the previous 30 days of `gold_change_risk_features` using bound SQL parameters,
+evaluates the new change with that historical snapshot, and idempotently merges
+the new allowlisted event into bronze. The query response is capped at one row
+and 16 KiB. A Databricks outage is surfaced as `DEGRADED`, never silently
+reported as a fully historical decision.
