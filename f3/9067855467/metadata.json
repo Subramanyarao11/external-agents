@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "f39067855467",
+  "strategy": "manual-commit",
+  "branch": "curveball/dual-format-resilience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md",
+    "agents/entire-agent-github-actions/AGENT.md",
+    "agents/entire-agent-github-actions/internal/githubactions/curveball_transcript_test.go",
+    "agents/entire-agent-github-actions/internal/githubactions/transcript.go",
+    "agents/entire-agent-github-actions/scripts/verify-github-actions.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/9067855467/0/metadata.json",
+      "transcript": "/f3/9067855467/0/full.jsonl",
+      "compact_transcript": "/f3/9067855467/0/transcript.jsonl",
+      "content_hash": "/f3/9067855467/0/content_hash.txt",
+      "prompt": "/f3/9067855467/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 206985,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4207744,
+    "output_tokens": 18253,
+    "api_call_count": 25
+  }
+}
