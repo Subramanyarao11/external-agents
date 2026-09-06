@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "ca99e1d9fae6",
+  "strategy": "manual-commit",
+  "branch": "fix/batch3-live-readiness",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md",
+    "agents/entire-agent-github-actions/internal/githubactions/transcript.go",
+    "proofgate/databricks/databricks.yml",
+    "proofgate/databricks/deploy-demo.sh",
+    "proofgate/databricks/phase2/databricks.yml",
+    "proofgate/scripts/verify-offline.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/99e1d9fae6/0/metadata.json",
+      "transcript": "/ca/99e1d9fae6/0/full.jsonl",
+      "compact_transcript": "/ca/99e1d9fae6/0/transcript.jsonl",
+      "content_hash": "/ca/99e1d9fae6/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 17356,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 16,
+    "api_call_count": 1
+  }
+}
