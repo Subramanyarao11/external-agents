@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="proofgate-demo">
+  <testsuite name="unit" tests="24" failures="0" errors="0" skipped="0" />
+  <testsuite name="integration" tests="6" failures="0" errors="0" skipped="0" />
+</testsuites>

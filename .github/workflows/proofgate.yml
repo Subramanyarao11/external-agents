@@ -49,16 +49,21 @@ jobs:
       - id: proofgate
         name: Evaluate the change
         uses: ./.github/actions/proofgate-evaluate
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_SQL_WAREHOUSE_ID: ${{ secrets.DATABRICKS_SQL_WAREHOUSE_ID }}
+          PROOFGATE_DATABRICKS_CATALOG: ${{ secrets.PROOFGATE_DATABRICKS_CATALOG }}
+          PROOFGATE_DATABRICKS_SCHEMA: ${{ secrets.PROOFGATE_DATABRICKS_SCHEMA }}
         with:
-          repository-id: external-agents-demo
+          repository-id: ${{ github.repository }}
           repository-opted-in: "true"
           test-report: proofgate-test-report.json
           denied-prefixes: payments/production,infra/production
           graph-mode: required
           fail-on: approval-required
-          # Change to roundtrip after configuring the five Databricks secrets
-          # documented in proofgate/README.md.
-          databricks-mode: off
+          databricks-mode: roundtrip
+          databricks-required: "false"
 
       - name: Preserve the Change Passport
         if: always()

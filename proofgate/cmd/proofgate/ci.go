@@ -29,25 +29,27 @@ type ciGateOptions struct {
 }
 
 type ciDatabricksState struct {
-	Mode             string                  `json:"mode"`
-	Status           string                  `json:"status"`
-	HistoryAvailable bool                    `json:"history_available"`
-	Warnings         []string                `json:"warnings"`
-	Ingest           *warehouse.IngestResult `json:"ingest,omitempty"`
+	Mode             string                    `json:"mode"`
+	Status           string                    `json:"status"`
+	HistoryAvailable bool                      `json:"history_available"`
+	Warnings         []string                  `json:"warnings"`
+	Ingest           *warehouse.IngestResult   `json:"ingest,omitempty"`
+	Review           *warehouse.ReviewDecision `json:"review,omitempty"`
 }
 
 type ciGateOutput struct {
-	Passport   contracts.ChangePassport `json:"passport"`
-	Result     engine.Result            `json:"result"`
-	Databricks ciDatabricksState        `json:"databricks"`
+	Passport          contracts.ChangePassport `json:"passport"`
+	Result            engine.Result            `json:"result"`
+	EnforcementStatus string                   `json:"enforcement_status"`
+	Databricks        ciDatabricksState        `json:"databricks"`
 }
 
 type policyFailure struct {
-	decision engine.Decision
+	status string
 }
 
 func (failure policyFailure) Error() string {
-	return fmt.Sprintf("ProofGate policy rejected this change with decision %s", failure.decision)
+	return fmt.Sprintf("ProofGate enforcement rejected this change with status %s", failure.status)
 }
 
 func ciGate(args []string, stdout io.Writer) error {
@@ -100,6 +102,18 @@ func ciGate(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if databricksClient != nil && modeNeedsHistory(options.databricksMode) {
+		ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+		review, reviewErr := databricksClient.LookupReview(ctx, passport.EventID)
+		cancel()
+		if reviewErr != nil {
+			databricks.Status = "DEGRADED"
+			databricks.Warnings = append(databricks.Warnings, "DATABRICKS_REVIEW_UNAVAILABLE")
+			databricksErrors = append(databricksErrors, reviewErr)
+		} else if review.Available {
+			databricks.Review = &review
+		}
+	}
 	if databricksClient != nil && modeNeedsExport(options.databricksMode) {
 		event, eventErr := warehouse.BuildEvent(passport, result)
 		if eventErr != nil {
@@ -122,23 +136,26 @@ func ciGate(args []string, stdout io.Writer) error {
 	if databricks.Status != "DEGRADED" {
 		databricks.Status = databricksSuccessStatus(options.databricksMode)
 	}
-	output := ciGateOutput{Passport: passport, Result: result, Databricks: databricks}
+	enforcement := enforcementStatus(result.Decision, databricks.Review)
+	output := ciGateOutput{
+		Passport: passport, Result: result, EnforcementStatus: enforcement, Databricks: databricks,
+	}
 
 	if err := writeJSONFileAtomic(options.resultPath, output); err != nil {
 		return fmt.Errorf("write result: %w", err)
 	}
 	if options.githubOutput != "" {
-		if err := writeGitHubOutput(options.githubOutput, options.resultPath, passport, result, databricks); err != nil {
+		if err := writeGitHubOutput(options.githubOutput, options.resultPath, passport, result, enforcement, databricks); err != nil {
 			return fmt.Errorf("write GitHub output: %w", err)
 		}
 	}
 	if options.githubSummary != "" {
-		if err := appendGitHubSummary(options.githubSummary, passport, result, databricks); err != nil {
+		if err := appendGitHubSummary(options.githubSummary, passport, result, enforcement, databricks); err != nil {
 			return fmt.Errorf("write GitHub summary: %w", err)
 		}
 	}
 
-	_, _ = fmt.Fprintf(stdout, "ProofGate: %s (risk score %d, %d hard stops)\n", result.Decision, result.Score, len(result.HardStops))
+	_, _ = fmt.Fprintf(stdout, "ProofGate: %s (automated %s, risk score %d, %d hard stops)\n", enforcement, result.Decision, result.Score, len(result.HardStops))
 	if databricks.Status == "DEGRADED" {
 		_, _ = fmt.Fprintln(stdout, "Databricks: DEGRADED (continuing with explicitly marked partial evidence)")
 	}
@@ -146,8 +163,8 @@ func ciGate(args []string, stdout io.Writer) error {
 	if options.databricksRequired && len(databricksErrors) > 0 {
 		finalErrors = append(finalErrors, fmt.Errorf("required Databricks operation failed: %w", errors.Join(databricksErrors...)))
 	}
-	if shouldFail(options.failOn, result.Decision) {
-		finalErrors = append(finalErrors, policyFailure{decision: result.Decision})
+	if shouldFailEnforcement(options.failOn, result.Decision, databricks.Review) {
+		finalErrors = append(finalErrors, policyFailure{status: enforcement})
 	}
 	return errors.Join(finalErrors...)
 }
@@ -167,6 +184,7 @@ func parseCIGateOptions(args []string) (ciGateOptions, error) {
 	flags.BoolVar(&options.build.aiAuthored, "ai-authored", true, "mark the change as AI-authored")
 	flags.StringVar(&options.build.sensitivePrefixes, "sensitive-prefixes", "", "comma-separated sensitive path prefixes")
 	flags.StringVar(&options.build.deniedPrefixes, "denied-prefixes", "", "comma-separated never-auto-approve path prefixes")
+	flags.StringVar(&options.build.graphMode, "graph-mode", "off", "Entire Graph impact analysis: off, auto, or required")
 	flags.StringVar(&options.build.nowValue, "now", "", "evaluation time in RFC3339")
 	flags.StringVar(&options.resultPath, "result", "proofgate-result.json", "machine-readable result path")
 	flags.StringVar(&options.githubOutput, "github-output", os.Getenv("GITHUB_OUTPUT"), "GitHub Actions output file")
@@ -226,6 +244,28 @@ func shouldFail(threshold string, decision engine.Decision) bool {
 	}
 }
 
+func enforcementStatus(decision engine.Decision, review *warehouse.ReviewDecision) string {
+	if review != nil && review.Available {
+		if review.Action == "APPROVE" {
+			return "HUMAN_APPROVED"
+		}
+		if review.Action == "REJECT" {
+			return "HUMAN_REJECTED"
+		}
+	}
+	if decision == engine.DecisionApprovalRequired {
+		return "AWAITING_APPROVAL"
+	}
+	return string(decision)
+}
+
+func shouldFailEnforcement(threshold string, decision engine.Decision, review *warehouse.ReviewDecision) bool {
+	if review != nil && review.Available {
+		return review.Action != "APPROVE"
+	}
+	return shouldFail(threshold, decision)
+}
+
 func writeJSONFileAtomic(path string, value any) error {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
@@ -260,16 +300,20 @@ func writeJSONFileAtomic(path string, value any) error {
 	return os.Rename(temporaryPath, absolute)
 }
 
-func writeGitHubOutput(path, resultPath string, passport contracts.ChangePassport, result engine.Result, databricks ciDatabricksState) error {
+func writeGitHubOutput(path, resultPath string, passport contracts.ChangePassport, result engine.Result, enforcement string, databricks ciDatabricksState) error {
 	values := map[string]string{
-		"checkpoint_id":     passport.Change.CheckpointID,
-		"decision":          string(result.Decision),
-		"hard_stops":        strconv.Itoa(len(result.HardStops)),
-		"result_path":       resultPath,
-		"risk_score":        strconv.Itoa(result.Score),
-		"databricks_status": databricks.Status,
+		"checkpoint_id":      passport.Change.CheckpointID,
+		"decision":           string(result.Decision),
+		"hard_stops":         strconv.Itoa(len(result.HardStops)),
+		"result_path":        resultPath,
+		"risk_score":         strconv.Itoa(result.Score),
+		"databricks_status":  databricks.Status,
+		"enforcement_status": enforcement,
+		"impact_source":      passport.Impact.AnalysisSource,
+		"impact_complete":    strconv.FormatBool(passport.Impact.AnalysisComplete),
+		"max_dependents":     strconv.Itoa(passport.Impact.MaxDependentCount),
 	}
-	keys := []string{"decision", "risk_score", "hard_stops", "checkpoint_id", "result_path", "databricks_status"}
+	keys := []string{"decision", "enforcement_status", "risk_score", "hard_stops", "checkpoint_id", "result_path", "databricks_status", "impact_source", "impact_complete", "max_dependents"}
 	var output strings.Builder
 	for _, key := range keys {
 		value := values[key]
@@ -281,20 +325,26 @@ func writeGitHubOutput(path, resultPath string, passport contracts.ChangePasspor
 	return appendFile(path, output.String())
 }
 
-func appendGitHubSummary(path string, passport contracts.ChangePassport, result engine.Result, databricks ciDatabricksState) error {
+func appendGitHubSummary(path string, passport contracts.ChangePassport, result engine.Result, enforcement string, databricks ciDatabricksState) error {
 	var summary strings.Builder
-	_, _ = fmt.Fprintf(&summary, "## ProofGate: %s\n\n", result.Decision)
+	_, _ = fmt.Fprintf(&summary, "## ProofGate: %s\n\n", markdownText(enforcement))
 	_, _ = fmt.Fprintf(&summary, "| Evidence | Value |\n| --- | --- |\n")
+	_, _ = fmt.Fprintf(&summary, "| Automated verdict | %s |\n", result.Decision)
 	_, _ = fmt.Fprintf(&summary, "| Risk score | %d |\n", result.Score)
 	_, _ = fmt.Fprintf(&summary, "| Hard stops | %d |\n", len(result.HardStops))
 	_, _ = fmt.Fprintf(&summary, "| Entire checkpoint | `%s` |\n", markdownCell(passport.Change.CheckpointID, "missing"))
 	_, _ = fmt.Fprintf(&summary, "| Source adapter | %s |\n", markdownCell(passport.Authoring.SourceAdapter, "unknown"))
 	_, _ = fmt.Fprintf(&summary, "| Provenance complete | %t |\n", passport.Authoring.ProvenanceComplete)
 	_, _ = fmt.Fprintf(&summary, "| Change size | %d files / %d changed lines |\n", len(passport.Impact.ChangedFiles), passport.Impact.ChangedLineCount)
+	_, _ = fmt.Fprintf(&summary, "| Impact analysis | %s (complete: %t) |\n", markdownCell(passport.Impact.AnalysisSource, "unknown"), passport.Impact.AnalysisComplete)
+	_, _ = fmt.Fprintf(&summary, "| Maximum dependents | %d |\n", passport.Impact.MaxDependentCount)
 	_, _ = fmt.Fprintf(&summary, "| Tests | %d total / %d failed |\n", passport.Tests.Total, passport.Tests.Failed)
 	_, _ = fmt.Fprintf(&summary, "| Databricks | %s |\n", markdownText(databricks.Status))
 	if passport.History.Available {
 		_, _ = fmt.Fprintf(&summary, "| Historical baseline | %d changes over %d days |\n", passport.History.BaselineChangeCount, passport.History.BaselineWindowDays)
+	}
+	if databricks.Review != nil {
+		_, _ = fmt.Fprintf(&summary, "| Human review | %s by %s |\n", markdownText(databricks.Review.Action), markdownText(databricks.Review.ActorID))
 	}
 	summary.WriteString("\n")
 	if len(databricks.Warnings) > 0 {

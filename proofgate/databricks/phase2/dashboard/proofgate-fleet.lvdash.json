@@ -1,0 +1,94 @@
+{
+  "datasets": [
+    {
+      "name": "fleet_summary",
+      "displayName": "Fleet summary",
+      "query": "SELECT SUM(change_count) AS total_changes, ROUND(100.0 * SUM(pass_count) / NULLIF(SUM(change_count), 0), 1) AS pass_rate, ROUND(100.0 * SUM(graph_complete_count) / NULLIF(SUM(change_count), 0), 1) AS graph_coverage, MAX(maximum_dependent_count) AS maximum_dependents FROM fleet_gate_metrics WHERE metric_day >= date_sub(current_date(), 7)"
+    },
+    {
+      "name": "decision_mix",
+      "displayName": "Decision mix",
+      "query": "SELECT decision, COUNT(*) AS change_count FROM gold_change_risk_features WHERE occurred_at >= date_sub(current_timestamp(), 7) GROUP BY decision"
+    },
+    {
+      "name": "repo_risk",
+      "displayName": "Repository risk",
+      "query": "SELECT repo_id, ROUND(AVG(risk_score), 1) AS average_risk FROM gold_change_risk_features WHERE occurred_at >= date_sub(current_timestamp(), 7) GROUP BY repo_id ORDER BY average_risk DESC LIMIT 10"
+    },
+    {
+      "name": "block_reasons",
+      "displayName": "Block reasons",
+      "query": "SELECT reason_code, COUNT(*) AS occurrence_count FROM gold_change_risk_features LATERAL VIEW EXPLODE(reason_codes) AS reason_code WHERE occurred_at >= date_sub(current_timestamp(), 7) AND decision = 'APPROVAL_REQUIRED' GROUP BY reason_code ORDER BY occurrence_count DESC LIMIT 10"
+    }
+  ],
+  "pages": [
+    {
+      "name": "fleet_control",
+      "displayName": "Fleet Control",
+      "layout": [
+        {
+          "widget": {
+            "name": "fleet_title",
+            "textbox_spec": "# ProofGate Fleet Control\nDeterministic policy outcomes, Entire Graph evidence coverage, and review pressure across repositories. Last 7 days."
+          },
+          "position": {"x": 0, "y": 0, "width": 6, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "total_changes",
+            "queries": [{"name": "main_query", "query": {"datasetName": "fleet_summary", "fields": [{"name": "total_changes", "expression": "MAX(`total_changes`)"}], "disaggregated": false}}],
+            "spec": {"version": 2, "widgetType": "counter", "encodings": {"value": {"fieldName": "total_changes", "displayName": "Changes"}}, "frame": {"showTitle": true, "title": "Changes evaluated"}}
+          },
+          "position": {"x": 0, "y": 2, "width": 2, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "pass_rate",
+            "queries": [{"name": "main_query", "query": {"datasetName": "fleet_summary", "fields": [{"name": "pass_rate", "expression": "MAX(`pass_rate`)"}], "disaggregated": false}}],
+            "spec": {"version": 2, "widgetType": "counter", "encodings": {"value": {"fieldName": "pass_rate", "displayName": "Pass rate", "numberFormat": "0.0'%'"}}, "frame": {"showTitle": true, "title": "Policy pass rate"}}
+          },
+          "position": {"x": 2, "y": 2, "width": 2, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "graph_coverage",
+            "queries": [{"name": "main_query", "query": {"datasetName": "fleet_summary", "fields": [{"name": "graph_coverage", "expression": "MAX(`graph_coverage`)"}], "disaggregated": false}}],
+            "spec": {"version": 2, "widgetType": "counter", "encodings": {"value": {"fieldName": "graph_coverage", "displayName": "Graph coverage", "numberFormat": "0.0'%'"}}, "frame": {"showTitle": true, "title": "Entire Graph coverage"}}
+          },
+          "position": {"x": 4, "y": 2, "width": 2, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "decision_mix_chart",
+            "queries": [{"name": "main_query", "query": {"datasetName": "decision_mix", "fields": [{"name": "change_count", "expression": "SUM(`change_count`)"}, {"name": "decision", "expression": "`decision`"}], "disaggregated": false}}],
+            "spec": {"version": 3, "widgetType": "pie", "encodings": {"angle": {"fieldName": "change_count", "scale": {"type": "quantitative"}, "displayName": "Changes"}, "color": {"fieldName": "decision", "scale": {"type": "categorical"}, "displayName": "Decision"}, "label": {"show": true}}, "frame": {"showTitle": true, "title": "Deterministic decision mix"}}
+          },
+          "position": {"x": 0, "y": 4, "width": 2, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "repo_risk_chart",
+            "queries": [{"name": "main_query", "query": {"datasetName": "repo_risk", "fields": [{"name": "repo_id", "expression": "`repo_id`"}, {"name": "average_risk", "expression": "MAX(`average_risk`)"}], "disaggregated": false}}],
+            "spec": {"version": 3, "widgetType": "bar", "encodings": {"x": {"fieldName": "repo_id", "scale": {"type": "categorical"}, "axis": {"title": "Repository"}, "displayName": "Repository"}, "y": {"fieldName": "average_risk", "scale": {"type": "quantitative"}, "axis": {"title": "Average risk"}, "displayName": "Average risk"}}, "frame": {"showTitle": true, "title": "Repositories needing attention"}}
+          },
+          "position": {"x": 2, "y": 4, "width": 4, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "block_reason_chart",
+            "queries": [{"name": "main_query", "query": {"datasetName": "block_reasons", "fields": [{"name": "reason_code", "expression": "`reason_code`"}, {"name": "occurrence_count", "expression": "SUM(`occurrence_count`)"}], "disaggregated": false}}],
+            "spec": {"version": 3, "widgetType": "bar", "encodings": {"x": {"fieldName": "reason_code", "scale": {"type": "categorical"}, "axis": {"title": "Reason code"}, "displayName": "Reason code"}, "y": {"fieldName": "occurrence_count", "scale": {"type": "quantitative"}, "axis": {"title": "Occurrences"}, "displayName": "Occurrences"}}, "frame": {"showTitle": true, "title": "Why changes require approval"}}
+          },
+          "position": {"x": 0, "y": 10, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "governance_note",
+            "textbox_spec": "**Governance boundary:** this dashboard visualizes allowlisted facts that influence review priority. It contains no raw prompts, source code, secrets, or model chain-of-thought. AI/BI and Genie explain the evidence; only ProofGate's deterministic engine sets the verdict."
+          },
+          "position": {"x": 0, "y": 16, "width": 6, "height": 2}
+        }
+      ]
+    }
+  ]
+}

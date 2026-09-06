@@ -1,0 +1,59 @@
+# Managed by entire-agent-github-actions.
+name: Entire ProofGate capture
+description: Capture a Claude, Codex, or Cursor execution as an Entire session
+inputs:
+  mode:
+    description: Use begin before the AI action and finish after it
+    required: true
+  execution_file:
+    description: Path to provider execution JSON or JSONL
+    required: false
+    default: ""
+  provider:
+    description: AI provider (auto, claude, codex, or cursor)
+    required: false
+    default: auto
+  model:
+    description: Requested model identifier when the stream omits it
+    required: false
+    default: ""
+  session_id:
+    description: Stable run-scoped id shared by the begin and finish steps
+    required: true
+  prompt:
+    description: Redacted task prompt recorded for the turn
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Begin Entire session
+      if: inputs.mode == 'begin'
+      shell: bash
+      env:
+        ENTIRE_SESSION_ID: ${{ inputs.session_id }}
+        ENTIRE_TASK_PROMPT: ${{ inputs.prompt }}
+        ENTIRE_PROVIDER: ${{ inputs.provider }}
+        ENTIRE_MODEL: ${{ inputs.model }}
+      run: |
+        entire-agent-github-actions capture-start \
+          --session-id "$ENTIRE_SESSION_ID" \
+          --prompt "$ENTIRE_TASK_PROMPT" \
+          --provider "$ENTIRE_PROVIDER" \
+          --model "$ENTIRE_MODEL"
+    - name: Finish Entire session
+      if: inputs.mode == 'finish'
+      shell: bash
+      env:
+        ENTIRE_EXECUTION_FILE: ${{ inputs.execution_file }}
+        ENTIRE_SESSION_ID: ${{ inputs.session_id }}
+        ENTIRE_TASK_PROMPT: ${{ inputs.prompt }}
+        ENTIRE_PROVIDER: ${{ inputs.provider }}
+        ENTIRE_MODEL: ${{ inputs.model }}
+      run: |
+        entire-agent-github-actions capture-finish \
+          --execution-file "$ENTIRE_EXECUTION_FILE" \
+          --session-id "$ENTIRE_SESSION_ID" \
+          --prompt "$ENTIRE_TASK_PROMPT" \
+          --provider "$ENTIRE_PROVIDER" \
+          --model "$ENTIRE_MODEL"

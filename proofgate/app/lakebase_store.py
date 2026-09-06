@@ -90,6 +90,9 @@ class LakebaseStore:
                     automated_verdict TEXT NOT NULL,
                     risk_score INTEGER NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
                     changed_file_count INTEGER NOT NULL,
+                    impact_analysis_source TEXT NOT NULL DEFAULT 'git-path-heuristic',
+                    impact_analysis_complete BOOLEAN NOT NULL DEFAULT FALSE,
+                    max_dependent_count INTEGER NOT NULL DEFAULT 0,
                     tests_total INTEGER NOT NULL,
                     tests_failed INTEGER NOT NULL,
                     provenance_complete BOOLEAN NOT NULL,
@@ -101,6 +104,14 @@ class LakebaseStore:
                     occurred_at TIMESTAMPTZ NOT NULL,
                     updated_at TIMESTAMPTZ NOT NULL
                 )
+                """
+            )
+            cursor.execute(
+                """
+                ALTER TABLE proofgate_gates
+                    ADD COLUMN IF NOT EXISTS impact_analysis_source TEXT NOT NULL DEFAULT 'git-path-heuristic',
+                    ADD COLUMN IF NOT EXISTS impact_analysis_complete BOOLEAN NOT NULL DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS max_dependent_count INTEGER NOT NULL DEFAULT 0
                 """
             )
             cursor.execute(
@@ -138,18 +149,22 @@ class LakebaseStore:
                     INSERT INTO proofgate_gates (
                         event_id, repo_id, checkpoint_id, commit_sha,
                         automated_verdict, risk_score, changed_file_count,
+                        impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
                         reason_codes_json, hard_stop_codes_json, review_status,
                         version, occurred_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s,
                         %s::jsonb, %s::jsonb, %s, 1, %s, %s
                     ) ON CONFLICT (event_id) DO NOTHING
                     """,
                     (
                         gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
                         gate["commit_sha"], gate["automated_verdict"], gate["risk_score"],
-                        gate["changed_file_count"], gate["tests_total"], gate["tests_failed"],
+                        gate["changed_file_count"], gate["impact_analysis_source"],
+                        gate["impact_analysis_complete"], gate["max_dependent_count"],
+                        gate["tests_total"], gate["tests_failed"],
                         gate["provenance_complete"], gate["summary"],
                         json.dumps(gate["reason_codes"]),
                         json.dumps(gate["hard_stop_codes"]), gate["review_status"],
@@ -168,11 +183,13 @@ class LakebaseStore:
                     INSERT INTO proofgate_gates (
                         event_id, repo_id, checkpoint_id, commit_sha,
                         automated_verdict, risk_score, changed_file_count,
+                        impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
                         reason_codes_json, hard_stop_codes_json, review_status,
                         version, occurred_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s,
                         %s::jsonb, %s::jsonb, %s, 1, %s, %s
                     ) ON CONFLICT (event_id) DO UPDATE SET
                         repo_id = EXCLUDED.repo_id,
@@ -181,6 +198,9 @@ class LakebaseStore:
                         automated_verdict = EXCLUDED.automated_verdict,
                         risk_score = EXCLUDED.risk_score,
                         changed_file_count = EXCLUDED.changed_file_count,
+                        impact_analysis_source = EXCLUDED.impact_analysis_source,
+                        impact_analysis_complete = EXCLUDED.impact_analysis_complete,
+                        max_dependent_count = EXCLUDED.max_dependent_count,
                         tests_total = EXCLUDED.tests_total,
                         tests_failed = EXCLUDED.tests_failed,
                         provenance_complete = EXCLUDED.provenance_complete,
@@ -193,7 +213,11 @@ class LakebaseStore:
                     (
                         gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
                         gate["commit_sha"], gate["automated_verdict"], gate["risk_score"],
-                        gate["changed_file_count"], gate["tests_total"], gate["tests_failed"],
+                        gate["changed_file_count"],
+                        gate.get("impact_analysis_source", "git-path-heuristic"),
+                        gate.get("impact_analysis_complete", False),
+                        int(gate.get("max_dependent_count", 0)),
+                        gate["tests_total"], gate["tests_failed"],
                         gate["provenance_complete"], gate["summary"],
                         json.dumps(gate["reason_codes"]),
                         json.dumps(gate["hard_stop_codes"]),

@@ -46,6 +46,10 @@ type ImpactEvidence struct {
 	ChangedLineCount    int      `json:"changed_line_count"`
 	ImpactedEntities    []string `json:"impacted_entities"`
 	DependencyDepth     int      `json:"dependency_depth"`
+	MaxDependentCount   int      `json:"max_dependent_count"`
+	AnalysisSource      string   `json:"analysis_source"`
+	AnalysisComplete    bool     `json:"analysis_complete"`
+	AnalysisWarnings    []string `json:"analysis_warnings"`
 	SensitiveComponents []string `json:"sensitive_components"`
 	DeniedComponents    []string `json:"denied_components"`
 }

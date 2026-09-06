@@ -1,5 +1,6 @@
 bundle:
   name: entire-proofgate
+  databricks_cli_version: ">= 1.15.0"
 
 variables:
   catalog:
@@ -10,6 +11,9 @@ variables:
     default: proofgate_dev
   warehouse_id:
     description: Existing serverless SQL warehouse ID
+  refresh_pause_status:
+    description: Keep scheduled medallion refresh paused in dev; demo enables it
+    default: PAUSED
 
 resources:
   schemas:
@@ -22,6 +26,10 @@ resources:
     proofgate_prepare:
       name: proofgate-prepare-${bundle.target}
       max_concurrent_runs: 1
+      schedule:
+        quartz_cron_expression: "0 0/5 * * * ?"
+        timezone_id: UTC
+        pause_status: ${var.refresh_pause_status}
       tasks:
         - task_key: setup_tables
           sql_task:
@@ -51,5 +59,7 @@ targets:
 
   demo:
     mode: production
+    variables:
+      refresh_pause_status: UNPAUSED
     workspace:
       root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

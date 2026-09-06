@@ -120,13 +120,21 @@ func generatedAction(localDev bool) string {
 	}
 	return fmt.Sprintf(`%s
 name: Entire ProofGate capture
-description: Capture a Claude Code Action execution as an Entire session
+description: Capture a Claude, Codex, or Cursor execution as an Entire session
 inputs:
   mode:
     description: Use begin before the AI action and finish after it
     required: true
   execution_file:
-    description: Path from the Claude Code Action execution_file output
+    description: Path to provider execution JSON or JSONL
+    required: false
+    default: ""
+  provider:
+    description: AI provider (auto, claude, codex, or cursor)
+    required: false
+    default: auto
+  model:
+    description: Requested model identifier when the stream omits it
     required: false
     default: ""
   session_id:
@@ -145,20 +153,30 @@ runs:
       env:
         ENTIRE_SESSION_ID: ${{ inputs.session_id }}
         ENTIRE_TASK_PROMPT: ${{ inputs.prompt }}
+        ENTIRE_PROVIDER: ${{ inputs.provider }}
+        ENTIRE_MODEL: ${{ inputs.model }}
       run: |
         %s capture-start \
           --session-id "$ENTIRE_SESSION_ID" \
-          --prompt "$ENTIRE_TASK_PROMPT"
+          --prompt "$ENTIRE_TASK_PROMPT" \
+          --provider "$ENTIRE_PROVIDER" \
+          --model "$ENTIRE_MODEL"
     - name: Finish Entire session
       if: inputs.mode == 'finish'
       shell: bash
       env:
         ENTIRE_EXECUTION_FILE: ${{ inputs.execution_file }}
         ENTIRE_SESSION_ID: ${{ inputs.session_id }}
+        ENTIRE_TASK_PROMPT: ${{ inputs.prompt }}
+        ENTIRE_PROVIDER: ${{ inputs.provider }}
+        ENTIRE_MODEL: ${{ inputs.model }}
       run: |
         %s capture-finish \
           --execution-file "$ENTIRE_EXECUTION_FILE" \
-          --session-id "$ENTIRE_SESSION_ID"
+          --session-id "$ENTIRE_SESSION_ID" \
+          --prompt "$ENTIRE_TASK_PROMPT" \
+          --provider "$ENTIRE_PROVIDER" \
+          --model "$ENTIRE_MODEL"
 `, actionMarker, binary, binary)
 }
 
@@ -181,7 +199,7 @@ func rawString(raw map[string]interface{}, key string) string {
 
 func actionMetadata(raw map[string]interface{}) map[string]string {
 	metadata := map[string]string{}
-	for _, key := range []string{"repository", "run_id", "run_attempt", "sha", "workflow", "job"} {
+	for _, key := range []string{"repository", "run_id", "run_attempt", "sha", "workflow", "job", "provider"} {
 		value := strings.TrimSpace(rawString(raw, key))
 		if value != "" {
 			metadata[key] = value

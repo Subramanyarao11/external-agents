@@ -19,10 +19,12 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: proofgate <build-passport|gate|ci-gate|evaluate|export|default-policy> [flags]")
+		fatalf("usage: proofgate <junit-report|build-passport|gate|ci-gate|evaluate|export|default-policy> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
+	case "junit-report":
+		err = junitReport(os.Args[2:], os.Stdout)
 	case "build-passport":
 		err = buildPassport(os.Args[2:], os.Stdout)
 	case "gate":
@@ -60,6 +62,7 @@ type buildOptions struct {
 	aiAuthored         bool
 	sensitivePrefixes  string
 	deniedPrefixes     string
+	graphMode          string
 	nowValue           string
 }
 
@@ -106,6 +109,7 @@ func parseBuildOptions(name string, args []string, includeNow bool) (buildOption
 	flags.BoolVar(&options.aiAuthored, "ai-authored", true, "mark the change as AI-authored")
 	flags.StringVar(&options.sensitivePrefixes, "sensitive-prefixes", "", "comma-separated sensitive path prefixes")
 	flags.StringVar(&options.deniedPrefixes, "denied-prefixes", "", "comma-separated never-auto-approve path prefixes")
+	flags.StringVar(&options.graphMode, "graph-mode", "off", "Entire Graph impact analysis: off, auto, or required")
 	if includeNow {
 		flags.StringVar(&options.nowValue, "now", "", "evaluation time in RFC3339")
 	}
@@ -136,6 +140,7 @@ func buildFromOptions(options buildOptions) (contracts.ChangePassport, time.Time
 		Tests:              tests,
 		SensitivePrefixes:  splitCSVOrNil(options.sensitivePrefixes),
 		DeniedPrefixes:     splitCSVOrNil(options.deniedPrefixes),
+		GraphMode:          options.graphMode,
 	})
 	if err != nil {
 		return contracts.ChangePassport{}, time.Time{}, err

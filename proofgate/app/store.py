@@ -45,6 +45,9 @@ SEED_GATES: tuple[dict[str, Any], ...] = (
         "automated_verdict": "APPROVAL_REQUIRED",
         "risk_score": 88,
         "changed_file_count": 7,
+        "impact_analysis_source": "entire-graph-v0.4.0",
+        "impact_analysis_complete": True,
+        "max_dependent_count": 24,
         "tests_total": 14,
         "tests_failed": 1,
         "provenance_complete": True,
@@ -62,6 +65,9 @@ SEED_GATES: tuple[dict[str, Any], ...] = (
         "automated_verdict": "APPROVAL_REQUIRED",
         "risk_score": 73,
         "changed_file_count": 4,
+        "impact_analysis_source": "entire-graph-v0.4.0",
+        "impact_analysis_complete": False,
+        "max_dependent_count": 11,
         "tests_total": 31,
         "tests_failed": 0,
         "provenance_complete": False,
@@ -79,6 +85,9 @@ SEED_GATES: tuple[dict[str, Any], ...] = (
         "automated_verdict": "WARN",
         "risk_score": 34,
         "changed_file_count": 5,
+        "impact_analysis_source": "entire-graph-v0.4.0",
+        "impact_analysis_complete": True,
+        "max_dependent_count": 8,
         "tests_total": 22,
         "tests_failed": 0,
         "provenance_complete": True,
@@ -96,6 +105,9 @@ SEED_GATES: tuple[dict[str, Any], ...] = (
         "automated_verdict": "PASS",
         "risk_score": 8,
         "changed_file_count": 2,
+        "impact_analysis_source": "entire-graph-v0.4.0",
+        "impact_analysis_complete": True,
+        "max_dependent_count": 2,
         "tests_total": 9,
         "tests_failed": 0,
         "provenance_complete": True,
@@ -139,6 +151,9 @@ class SQLiteStore:
                     automated_verdict TEXT NOT NULL,
                     risk_score INTEGER NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
                     changed_file_count INTEGER NOT NULL,
+                    impact_analysis_source TEXT NOT NULL DEFAULT 'git-path-heuristic',
+                    impact_analysis_complete INTEGER NOT NULL DEFAULT 0,
+                    max_dependent_count INTEGER NOT NULL DEFAULT 0,
                     tests_total INTEGER NOT NULL,
                     tests_failed INTEGER NOT NULL,
                     provenance_complete INTEGER NOT NULL,
@@ -167,6 +182,17 @@ class SQLiteStore:
                     ON decisions(gate_event_id, occurred_at DESC);
                 """
             )
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(gates)")
+            }
+            migrations = {
+                "impact_analysis_source": "TEXT NOT NULL DEFAULT 'git-path-heuristic'",
+                "impact_analysis_complete": "INTEGER NOT NULL DEFAULT 0",
+                "max_dependent_count": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for name, definition in migrations.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE gates ADD COLUMN {name} {definition}")
 
     def seed_demo(self, *, reset: bool = False) -> dict[str, int]:
         with self._connection() as connection:
@@ -181,15 +207,19 @@ class SQLiteStore:
                     INSERT OR IGNORE INTO gates (
                         event_id, repo_id, checkpoint_id, commit_sha,
                         automated_verdict, risk_score, changed_file_count,
+                        impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
                         reason_codes_json, hard_stop_codes_json, review_status,
                         version, occurred_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     """,
                     (
                         gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
                         gate["commit_sha"], gate["automated_verdict"],
                         gate["risk_score"], gate["changed_file_count"],
+                        gate["impact_analysis_source"],
+                        int(gate["impact_analysis_complete"]),
+                        gate["max_dependent_count"],
                         gate["tests_total"], gate["tests_failed"],
                         int(gate["provenance_complete"]), gate["summary"],
                         json.dumps(gate["reason_codes"]),
@@ -211,10 +241,11 @@ class SQLiteStore:
                     INSERT INTO gates (
                         event_id, repo_id, checkpoint_id, commit_sha,
                         automated_verdict, risk_score, changed_file_count,
+                        impact_analysis_source, impact_analysis_complete, max_dependent_count,
                         tests_total, tests_failed, provenance_complete, summary,
                         reason_codes_json, hard_stop_codes_json, review_status,
                         version, occurred_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     ON CONFLICT(event_id) DO UPDATE SET
                         repo_id = excluded.repo_id,
                         checkpoint_id = excluded.checkpoint_id,
@@ -222,6 +253,9 @@ class SQLiteStore:
                         automated_verdict = excluded.automated_verdict,
                         risk_score = excluded.risk_score,
                         changed_file_count = excluded.changed_file_count,
+                        impact_analysis_source = excluded.impact_analysis_source,
+                        impact_analysis_complete = excluded.impact_analysis_complete,
+                        max_dependent_count = excluded.max_dependent_count,
                         tests_total = excluded.tests_total,
                         tests_failed = excluded.tests_failed,
                         provenance_complete = excluded.provenance_complete,
@@ -234,7 +268,11 @@ class SQLiteStore:
                     (
                         gate["event_id"], gate["repo_id"], gate["checkpoint_id"],
                         gate["commit_sha"], gate["automated_verdict"], gate["risk_score"],
-                        gate["changed_file_count"], gate["tests_total"], gate["tests_failed"],
+                        gate["changed_file_count"],
+                        gate.get("impact_analysis_source", "git-path-heuristic"),
+                        int(gate.get("impact_analysis_complete", False)),
+                        int(gate.get("max_dependent_count", 0)),
+                        gate["tests_total"], gate["tests_failed"],
                         int(gate["provenance_complete"]), gate["summary"],
                         json.dumps(gate["reason_codes"]), json.dumps(gate["hard_stop_codes"]),
                         gate.get("review_status", "PENDING"), gate["occurred_at"], _now(),
@@ -247,6 +285,7 @@ class SQLiteStore:
     def _gate_from_row(row: sqlite3.Row) -> dict[str, Any]:
         gate = dict(row)
         gate["provenance_complete"] = bool(gate["provenance_complete"])
+        gate["impact_analysis_complete"] = bool(gate["impact_analysis_complete"])
         gate["reason_codes"] = json.loads(gate.pop("reason_codes_json"))
         gate["hard_stop_codes"] = json.loads(gate.pop("hard_stop_codes_json"))
         return gate

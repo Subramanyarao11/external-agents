@@ -54,9 +54,12 @@ def live_gate_metrics():
                 F.when(F.col("decision") == "APPROVAL_REQUIRED", 1).otherwise(0)
             ).alias("approval_required_count"),
             F.avg("risk_score").alias("average_risk_score"),
+            F.max("max_dependent_count").alias("maximum_dependent_count"),
+            F.avg(F.when(F.col("impact_analysis_complete"), 1.0).otherwise(0.0)).alias(
+                "graph_complete_rate"
+            ),
             F.avg(F.when(F.col("provenance_complete"), 1.0).otherwise(0.0)).alias(
                 "provenance_rate"
             ),
         )
     )
-

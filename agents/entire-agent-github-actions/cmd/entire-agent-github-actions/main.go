@@ -79,10 +79,12 @@ func handleCaptureStart(args []string, stdout io.Writer, agent *githubactions.Ag
 	flags.SetOutput(io.Discard)
 	sessionID := flags.String("session-id", "", "stable workflow session id")
 	prompt := flags.String("prompt", "", "task prompt")
+	provider := flags.String("provider", "auto", "AI provider: auto, claude, codex, or cursor")
+	model := flags.String("model", "", "requested model identifier")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	result, err := agent.CaptureStart(*sessionID, *prompt)
+	result, err := agent.CaptureStartWithProvider(*sessionID, *prompt, *provider, *model)
 	if err != nil {
 		return err
 	}
@@ -92,8 +94,11 @@ func handleCaptureStart(args []string, stdout io.Writer, agent *githubactions.Ag
 func handleCaptureFinish(args []string, stdout io.Writer, agent *githubactions.Agent) error {
 	flags := flag.NewFlagSet("capture-finish", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	executionFile := flags.String("execution-file", "", "Claude Code Action execution_file")
+	executionFile := flags.String("execution-file", "", "provider execution JSON or JSONL file")
 	sessionID := flags.String("session-id", "", "stable workflow session id")
+	prompt := flags.String("prompt", "", "task prompt, used when the provider stream omits it")
+	provider := flags.String("provider", "auto", "AI provider: auto, claude, codex, or cursor")
+	model := flags.String("model", "", "requested model identifier")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -101,7 +106,7 @@ func handleCaptureFinish(args []string, stdout io.Writer, agent *githubactions.A
 	if err != nil {
 		return err
 	}
-	result, err := agent.CaptureFinish(resolved, *sessionID)
+	result, err := agent.CaptureFinishWithProvider(resolved, *sessionID, *provider, *prompt, *model)
 	if err != nil {
 		return err
 	}

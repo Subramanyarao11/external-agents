@@ -157,3 +157,69 @@ func TestLookupHistoryRejectsMalformedResult(t *testing.T) {
 		t.Fatal("expected malformed Databricks history to be rejected")
 	}
 }
+
+func TestLookupReviewReturnsLatestParameterizedDecision(t *testing.T) {
+	eventID := "event-'not-interpolated"
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body statementRequest
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(body.Statement, eventID) || !strings.Contains(body.Statement, ":gate_event_id") {
+			t.Fatalf("review lookup was not parameterized: %s", body.Statement)
+		}
+		if len(body.Parameters) != 1 || body.Parameters[0].Value != eventID {
+			t.Fatalf("unexpected parameters: %+v", body.Parameters)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+  "statement_id":"review-1",
+  "status":{"state":"SUCCEEDED"},
+  "result":{"data_array":[["decision-1","APPROVE","reviewer@example.test","2026-09-04 12:30:00+00:00"]]}
+}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(Config{
+		Host: server.URL, Token: "test-token", WarehouseID: "warehouse-1",
+		Catalog: "main", Schema: "proofgate", HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := client.LookupReview(context.Background(), eventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !review.Available || review.Action != "APPROVE" || review.DecisionEventID != "decision-1" {
+		t.Fatalf("unexpected review: %+v", review)
+	}
+	if review.OccurredAt.Format(time.RFC3339) != "2026-09-04T12:30:00Z" {
+		t.Fatalf("unexpected review timestamp: %s", review.OccurredAt)
+	}
+}
+
+func TestLookupReviewHandlesPendingGate(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+  "statement_id":"review-empty",
+  "status":{"state":"SUCCEEDED"},
+  "result":{"data_array":[]}
+}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(Config{
+		Host: server.URL, Token: "test-token", WarehouseID: "warehouse-1",
+		Catalog: "main", Schema: "proofgate", HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := client.LookupReview(context.Background(), "event-pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Available {
+		t.Fatalf("pending gate unexpectedly has a review: %+v", review)
+	}
+}
