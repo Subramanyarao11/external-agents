@@ -93,7 +93,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 |---:|---|---|---|---|
 | 1 of 3 | `7e106ff..6d1396d` (commits 1-5 after base `c47a489`) | `baseline/01-foundation` | Sponsor/platform research, contract fixtures, Claude checkpoint evidence, deterministic decision engine, and Databricks evidence pipeline | Imported with no-ff merge `14a4880`; verification recorded below; PR #2 merged at `2026-09-06T06:25:31Z` |
 | 2 of 3 | `3e63e9f..dcb6f5a` (commits 6-10) | `baseline/02-control-room` | Control Room/GitHub approvals, Databricks deployment, change passports/Graph metadata, packaged Action/demo setup, and feedback/search stack | Imported with no-ff merge `02cb301`; verification recorded below |
-| 3 of 3 | `261b8cb..6414daf` (commits 11-14) | To be created after batch 2 review | Review continuity/rollout controls, JUnit evidence, Codex/Cursor capture, and final judging/Graph contracts | Pending batch 2 review |
+| 3 of 3 | `261b8cb..6414daf` (commits 11-14) | `baseline/03-final-integrations` | Review continuity/rollout controls, JUnit evidence, Codex/Cursor capture, and final judging/Graph contracts | Imported with no-ff merge `b15c06f`; verification recorded below |
 
 ## Kickoff Graph evidence
 
@@ -205,6 +205,233 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - **Offline (verified)**: All Go tests, builds, CLI examples, local structure verification, graph searches and diff.
 - **Live (unverified)**: Hosted GitHub Action execution, live Databricks deployment and SQL warehouse, Control Room running against real Databricks Apps, approval receipt round-trip with actual GitHub PR, warehouse sync and feedback loop with live credentials.
 
+## Batch 3 import verification
+
+### Environment disclosure
+
+Batch 3 was imported from a second Entire-enabled clone at
+`C:\Users\TECQNIO\Downloads\external-agents` (Windows, `origin` unchanged), not the
+macOS clone recorded above. The kickoff pack was supplied as
+`C:\Users\TECQNIO\Downloads\Entire-ProofGate-Kickoff-Pack.zip` and extracted to
+`C:\Users\TECQNIO\Downloads\proofgate-pack-extracted\Entire-ProofGate-Kickoff-Pack`.
+Batches 1 and 2 reached this clone only through `git pull` from `origin`; the
+batch 3 archive commits are descendants of `dcb6f5a` and were never pushed to
+`origin`, so the bundle was required.
+
+### Preconditions
+
+- `git merge-base --is-ancestor dcb6f5a HEAD`: **PASS** on `main` at `007147f`.
+- `git merge-base --is-ancestor d20a5ec HEAD`: **PASS**, confirming the curveball work is present.
+- Batch 2 integrity independently checked: `02cb301` is a two-parent no-ff merge of
+  `5999589` and `dcb6f5a`, carrying archived commits `3e63e9f`, `7c615c5`, `2a34aa4`,
+  `3f524e3`, `dcb6f5a` with their original subjects. Archive history had not diverged.
+
+### Original history
+
+- Bundle verification: `git bundle verify` reported a complete SHA-1 history, base ref
+  `c47a4893a102f3a7a8bff794a820455109b29c95`, archive tip
+  `6414daff9a749daff0e4058590c65a02ae6d38a4`, and `is okay`.
+- `git log --oneline --reverse dcb6f5a..6414daf` returned exactly four commits:
+  `261b8cb`, `01bf76c`, `9f75935`, `6414daf`. `git rev-list --count` returned `4`.
+- Full batch sequence, all a linear first-parent chain rooted at `dcb6f5a`:
+  `261b8cb` (`feat: release gates with governed human review`),
+  `01bf76c` (`feat: normalize real JUnit evidence for gates`),
+  `9f75935` (`feat: capture Codex and Cursor Actions sessions`),
+  `6414daf` (`feat: complete ProofGate judging integrations`).
+- Identity and dates: all four retain author and committer
+  `Subramanyarao11 <subramanya11rao@gmail.com>` and their archived dates from
+  `2026-09-04T22:54:42+05:30` through `2026-09-05T00:12:24+05:30`. Nothing was
+  squashed, cherry-picked, re-authored, amended or recreated.
+- Merge: `git merge --no-ff 6414daf -m "chore: import approved ProofGate baseline batch 3 of 3"`
+  created merge commit `b15c06f828f5ddf9b221fbfad6797c6193e6f53e` with parents
+  `007147f53a17fe8f30fd1a1929e63573c96171ba` and `6414daff9a749daff0e4058590c65a02ae6d38a4`.
+
+### Entire checkpoint status
+
+The import merge `b15c06f` carries **no** `Entire-Checkpoint` trailer. Neither does
+batch 1's merge `14a4880` nor batch 2's merge `02cb301`; in this repository the
+trailer appears only on agent-authored work commits such as `1e88d1d`
+(`Entire-Checkpoint: 326197240a9f`). `entire status` reports Entire enabled on
+`baseline/03-final-integrations` with checkpoints syncing to `origin`, but the
+registered agents are Claude Code, Codex and OpenCode; this session ran under
+Cursor, and no git hooks are installed in `.git/hooks`. No checkpoint ID is
+claimed for the batch 3 import, and none was fabricated.
+
+### Pre-import locate evidence (Graph unavailable)
+
+`entire graph` is **not a command** in the installed Entire CLI `0.10.5`
+(`Invalid usage: unknown command "graph" for "entire"`), and
+`entire plugin list` reports no plugins installed. `.entire/` in this clone contains
+only `.gitignore`, `settings.json` and `logs/`, with no `graph-agent.md`. The
+required Graph lookups, impact analysis and final semantic diff therefore could not
+be run, and nothing below is presented as Graph output. The equivalent work was done
+by source inspection and confirmed by tests:
+
+- Transcript/evidence seam: `parseSDKMessages` at `transcript.go:313` is the sole
+  format detector, with `readSDKMessages` at `:305` delegating to it.
+- Lifecycle handler: `Agent.ParseHook` at `hooks.go:21`.
+- Capture and checkpoint-writing: `Agent.CaptureStart` and `Agent.CaptureFinish` in
+  `capture.go`, which write the native session via `WriteSession` and dispatch
+  `run-start`, `turn-start`, `turn-end`, `run-end` through `dispatchLifecycle`.
+- JUnit consumers: batch 2 already defined `Suites`/`TestSuite` in
+  `proofgate/passportbuilder/builder.go:60-63` with `proofgate/examples/test-report.json`
+  and `.github/actions/proofgate-evaluate/action.yml`. Batch 3 extends this with the new
+  `proofgate/testreport` package rather than introducing a first consumer.
+- Graph metadata consumers: batch 3 adds `proofgate/passportbuilder/graph.go`.
+- Conflict surface predicted before merging by comparing changed-file sets on both
+  sides of base `dcb6f5a`: `AGENT.md`, `capture.go` and `transcript.go`. The merge
+  then conflicted on exactly `AGENT.md` and `transcript.go`.
+
+### Conflict resolution
+
+The merge stopped with content conflicts in `transcript.go` and `AGENT.md`; work
+stopped before resolving, as required. `capture.go` auto-merged textually but was
+found to be **semantically** broken against the curveball contract. Both sides had
+rewritten `parseSDKMessages` from the pre-curveball base, because the curveball work
+is not part of the archive line.
+
+Defects identified before resolving:
+
+1. `detectProvider` switched only on `record["type"]`, but every record in
+   `claude-action-execution-v2.jsonl` is `event`-keyed with an empty `type`. It
+   returned `unknown`, making `CaptureFinish` reject the official fixture outright.
+2. `CaptureFinish` re-marshalled the parsed messages into `data` before
+   `WriteSession`, so the stored session would no longer be byte-identical to the
+   supplied transcript.
+3. The archive's `json.Decoder` streaming loop returns an error on a truncated final
+   record, destroying the curveball partial-result guarantee.
+4. `CaptureStart`/`CaptureFinish` gained provider/model parameters, which would have
+   stopped `curveball_transcript_test.go` from compiling.
+
+Decisions taken, keeping the conflict surface as small as possible:
+
+- `parseSDKMessages` remains the single format detector. The curveball control flow
+  is kept intact (trim, empty input, `[` array, single-object envelope, then JSONL
+  with incomplete-tail tolerance) and each branch's output is passed through the
+  archive's `normalizeExecutionRecords`. No per-format parser was introduced; Codex
+  and Cursor handling are normalizers over the shared `sdkMessage` model.
+- The archive's duplicate decoder-stream loop and duplicate envelope handling were
+  dropped, since the curveball paths already cover those inputs and additionally
+  satisfy the partial-result rule. All helpers from both sides are retained.
+- `detectProvider` now returns `claude` for `event`-keyed records.
+- `CaptureFinish` stores the original transcript bytes. Provider normalization and
+  `addCaptureContext` enrichment stay in memory and only feed capture metadata;
+  `executionModel` was split so `messagesModel` can resolve the model from the
+  enriched messages.
+- Backward-compatible `CaptureStart(sessionID, prompt)` and
+  `CaptureFinish(executionFile, sessionID)` wrappers delegate to new
+  `CaptureStartWithProvider`/`CaptureFinishWithProvider` methods, and `main.go` calls
+  the explicit forms. As a result `curveball_transcript_test.go` and
+  `claude-action-execution-v2.jsonl` are **byte-for-byte unchanged** from `main`
+  (`git diff main..HEAD` reports no change for either path).
+- `AGENT.md` keeps both the curveball dual-format paragraph and the archive's
+  provider-source list, plus a note that stored sessions keep the supplied bytes.
+
+### Commands and results
+
+- `git log --oneline --reverse dcb6f5a..6414daf`: **PASS** — the four expected SHAs in order.
+- `git merge-base --is-ancestor 6414daf HEAD`: **PASS**.
+- `git merge-base --is-ancestor dcb6f5a HEAD` and `d20a5ec HEAD`: **PASS**.
+- `git diff --check main..HEAD`: **PASS**, no whitespace errors.
+- `git status --short`: clean.
+- `go vet ./...` in `agents/entire-agent-github-actions`: **PASS**.
+- `go build ./...` in `agents/entire-agent-github-actions`: **PASS**.
+- `go build ./...` and `go test ./...` in `proofgate`: **PASS** for every package, including the
+  new `testreport` package and `cmd/proofgate`.
+- JUnit evidence specifically: `TestReadJUnitAggregatesSuitesAndErrors`,
+  `TestReadJUnitMarksFullySkippedRequiredSuite`,
+  `TestReadJUnitRejectsUnknownRootAndInvalidCounts` and `TestParseJUnitSpec`: **PASS**.
+- `./agents/entire-agent-github-actions/scripts/verify-github-actions.sh --sample`: **PASS**
+  (exit 0) under Git Bash after installing `jq`, with the expected warnings that it is a
+  source-derived structure check and not a live GitHub runner verdict.
+- `go test ./...` in `agents/entire-agent-github-actions`: **FAIL** with ten failures, all
+  attributable to this Windows host rather than the import. Verified by running the same
+  suite on pre-merge `007147f` in a separate worktree, where six of the same tests fail
+  identically.
+- `go build ./...` in `e2e`: **FAIL** on this host — `syscall.Setpgid` and `syscall.Kill`
+  are POSIX-only and are used by untouched adapters (`amp.go`, `goose.go`, `grok.go`,
+  `kilo.go`, `kiro.go`). The failure reproduces identically on pre-merge `007147f`, and
+  `git diff dcb6f5a 6414daf -- e2e/` is empty, so batch 3 changed no `e2e` file.
+- `mise` and `golangci-lint` are not installed on this host, so the `mise exec --` forms
+  of the commands above and the lint gate could not be run. Go 1.25.4 was used directly.
+
+### Windows-only failure analysis
+
+Two root causes explain every failing Go test; neither is a behavior change from this import.
+
+1. Path separators. `safeEvidencePath` and the previous code both use `filepath.Clean`,
+   which yields `proofgate\evaluator.go` on Windows while the tests expect
+   `proofgate/evaluator.go`. The file sets and counts otherwise match exactly. This
+   affects `TestClaudeActionTranscriptSemantics`, `TestCurveballTranscriptFormats` (both
+   subtests), `TestCurveballIncompleteJSONLReturnsPartialResult`,
+   `TestCurveballUnknownEventIgnored`, and the three new archived tests
+   `TestCodexExecTranscriptSemantics`, `TestCodexPersistedRolloutSemantics` and
+   `TestCursorStreamTranscriptSemantics`. The same cause makes
+   `scripts/verify-provider-streams.sh` exit non-zero; the binary was confirmed to emit
+   `{"files":["proofgate\\evaluator.go","proofgate\\evaluator_test.go"],"current_position":7}`
+   for `codex-exec.jsonl`, and Cursor summary extraction returned the expected summary.
+2. `installFakeEntire` writes a `#!/bin/sh` script with no extension, which Windows
+   cannot execute, so `TestCurveballCaptureFinishPreservesRawTranscriptAndLifecycle` and
+   `TestCurveballCaptureFinishPreservesIncompleteTranscript` fail at the first lifecycle
+   dispatch, before reaching their storage assertions. Both also fail on pre-merge `main`.
+
+`TestCheckedInActionMatchesInstaller` is a new batch 3 test that compares the checked-in
+`.github/actions/entire-proofgate/action.yml` byte-for-byte against the installer output.
+This clone has `core.autocrlf=true` and no `.gitattributes`, so the working tree holds 59
+CRLF endings while the installer emits LF. With the file temporarily normalized to LF the
+test passes (`ok ... 1.068s`), so the checked-in action matches the installer and the
+failure is a checkout artifact.
+
+### Explicit format verification
+
+Because the two lifecycle tests cannot execute on Windows, temporary scaffolding was used
+to reach the same assertions through a `.bat` shim. It was **deleted before committing**
+and is not part of this branch. All four checks passed:
+
+- Original transcript format: **PASS** — legacy JSON array parses, with position 6,
+  prompts, summary and token usage as expected (only the separator assertion differs).
+- New JSONL format: **PASS** — official 17-record fixture, provider detected as `claude`,
+  model `acmecode-pro`, summary present, 8421/2194 tokens.
+- Unknown events: **PASS** — an unrecognized `future_signal` record is skipped, not fatal.
+- Incomplete input: **PASS** — a wholly incomplete first record returns an empty partial
+  result with a nil error; a malformed but complete record is still an error.
+- Codex evidence fixtures: **PASS** — `codex-exec.jsonl` and `codex-rollout.jsonl` both
+  detect as `codex` and parse to non-empty normalized records.
+- Cursor evidence fixture: **PASS** — `cursor-agent-stream.jsonl` detects as `cursor` and
+  parses to non-empty normalized records.
+- JUnit evidence handling: **PASS** — all four JUnit tests in `proofgate`.
+- Existing checkpoint compatibility: **PASS** — the stored session is byte-identical to
+  the supplied transcript for both the complete fixture and a truncated transcript, and
+  the lifecycle order `run-start`, `turn-start`, `turn-end`, `run-end` is preserved.
+
+### Final semantic diff
+
+`entire graph diff --base main --head HEAD --json` **could not be run**; the command does
+not exist in CLI `0.10.5`. No semantic diff summary is claimed. The mechanical change
+surface is 57 files, 3361 insertions and 201 deletions between `main` and `b15c06f`,
+of which the conflict resolution itself accounts for changes in `AGENT.md`,
+`main.go`, `capture.go` and `transcript.go` only.
+
+### Known gaps and unverified external integrations
+
+- Entire Graph evidence for batch 3 is entirely absent, not merely incomplete: no lookup,
+  no impact analysis and no semantic diff. The batch 3 commits add
+  `proofgate/passportbuilder/graph.go`, whose Graph-facing contracts have been read but
+  not exercised against a running Graph.
+- No `Entire-Checkpoint` trailer or checkpoint ID exists for the import merge.
+- The lint gate (`golangci-lint`) and the `mise`-pinned toolchain were not run on this host.
+- Ten Go tests and `verify-provider-streams.sh` fail on this Windows host for the two
+  platform reasons analysed above. They are expected to pass on Linux or macOS, but that
+  has **not** been demonstrated for this branch; hosted CI on the pull request is the
+  outstanding check.
+- The `e2e` module does not build on Windows, so no lifecycle scenario was run here. The
+  hosted GitHub Actions `RunPrompt` adapter remains unimplemented regardless.
+- Human-review continuity, rollout controls, Databricks deployment, Control Room
+  behavior, the Codex and Cursor hosted Actions, and the final judging integrations
+  introduced by these four commits were verified only as source and offline tests. No
+  live GitHub Actions run, Databricks job, Lakebase store, approval receipt or rerun was
+  executed, and none is claimed.
+
 ## Known limitations
 
-This record documents the verified history and local behavior of baseline batches 1 and 2. It does not claim that the imported work was newly authored during this event, that the archived whitespace defects are fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above for batch 1.
+This record documents the verified history and local behavior of baseline batches 1, 2 and 3. It does not claim that the imported work was newly authored during this event, that the archived whitespace defects are fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above for batch 1. Batch 3 was imported on a Windows host without `mise`, `golangci-lint` or Entire Graph, so its lint gate and all Graph evidence remain unverified, and its Windows test failures are analysed above rather than resolved.
