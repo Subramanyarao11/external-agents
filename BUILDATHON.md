@@ -60,7 +60,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - `entire status` reports that Claude Code and OpenCode hooks are out of date; Codex is the build agent used for this kickoff session.
 - `entire status` reported that session tracking diverged from `HEAD` immediately after the intentional history merge; after the documentation commits and mirrored push, final status no longer reported that warning. The import ancestry is intact.
 - Batch 1 has one archived whitespace defect: `git diff --check main..HEAD` reports a new blank line at EOF in `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`.
-- The shared `external-agents-tests` compliance runner is not installed on `PATH`, so local protocol compliance remains blocked pending that external test binary or CI.
+- The repository-declared `external-agents-tests` runner is installed through mise, and the shared compliance suite passes every applicable hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter are skipped.
 - The GitHub Actions e2e adapter deliberately has no hosted `RunPrompt` implementation, causing five tagged lifecycle scenarios to fail locally.
 - Databricks and Control Room behavior may depend on credentials or external infrastructure and must not be described as live until demonstrated.
 - Exact GitHub handles for Daksh and Rohit are pending.
@@ -133,7 +133,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - `go build ./...` in `proofgate`: **PASS**.
 - `go test ./...` in `e2e` without the `e2e` tag: **PASS** for the ordinary package/unit target.
 - `./scripts/verify-github-actions.sh --sample`: **PASS** for the source-derived local structure fixture, with expected warnings that it is not a live GitHub runner verdict.
-- `./scripts/verify-compliance.sh /private/tmp/entire-agent-github-actions-batch1`: **BLOCKED** — `external-agents-tests` is not installed on `PATH`.
+- `GOCACHE=/private/tmp/external-agents-compliance-go-cache go build -o /private/tmp/entire-agent-github-actions-curveball ./cmd/entire-agent-github-actions`, followed by `mise exec -- ./scripts/verify-compliance.sh /private/tmp/entire-agent-github-actions-curveball`: **PASS** for every applicable shared hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter were skipped.
 - Both documented `go run ./cmd/proofgate evaluate` examples: **PASS**, producing `PASS` for `examples/pass.json` and `APPROVAL_REQUIRED` for `examples/approval-required.json` at the documented evaluation time.
 - `go run ./cmd/proofgate export --passport examples/pass.json --now 2026-09-04T12:00:00Z --dry-run`: **PASS**, producing an allowlisted event without network transmission.
 - `E2E_AGENT=github-actions ... go test -tags=e2e -v -count=1 ./...` in `e2e`: **FAIL**. `TestLifecycle_DetectAndEnable` and `TestLifecycle_HooksInstalledAfterEnable` passed; five prompt-dependent cases (`SinglePromptManualCommit`, `MultiplePromptsManualCommit`, `RewindPreCommit`, `RewindAfterCommit`, and `SessionPersistence`) failed because the adapter returns `hosted GitHub Actions lifecycle runner not implemented`; interactive and OMP-only cases skipped.
@@ -149,7 +149,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - Independent verifier: `verify-github-actions.sh` now normalizes either an array or an object stream before extracting session/model/prompt/count evidence. The source-derived legacy sample and official 17-record JSONL fixture both pass locally.
 - Final semantic Graph diff: `entire graph diff --base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d --head HEAD --json` reported the expected `parseSDKMessages` change, the JSONL normalization and incomplete-tail helpers, the curveball parser/capture/lifecycle tests, the independent verifier, and documentation. It found no unrelated implementation symbols. Graph reported `claude-action-execution-v2.jsonl` as unsupported because it has no JSONL parser, so the fixture was validated directly as 17 valid JSON records with no remaining `\_` display escapes.
 - Offline verification: curveball contract tests pass; the full GitHub Actions agent module passes and builds; `git diff --check` passes; ProofGate passes after granting its `httptest` loopback listener; untagged e2e passes; focused real-CLI `DetectAndEnable` and `HooksInstalledAfterEnable` lifecycle checks pass for `github-actions`.
-- Remaining verification gaps: `external-agents-tests` is still not installed, so shared compliance is blocked. The hosted GitHub Actions `RunPrompt` adapter remains unimplemented, so prompt/rewind/session-persistence lifecycle scenarios are not claimed. No credential-dependent hosted Action, Databricks deployment, or Control Room execution was performed.
+- Remaining verification gaps: the hosted GitHub Actions `RunPrompt` adapter remains unimplemented, so prompt/rewind/session-persistence lifecycle scenarios are not claimed. No credential-dependent hosted Action, Databricks deployment, or Control Room execution was performed.
 - GitHub Action run, blocked PR, approval receipt, successful rerun, Databricks proof, and demo video: pending.
 
 ### Noon curveball Graph impact evidence
@@ -163,4 +163,4 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 
 ## Known limitations
 
-This record documents the verified history and local behavior of baseline batch 1. It does not claim that the imported work was newly authored during this event, that the archived whitespace defect is fixed, that shared protocol compliance ran locally, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated.
+This record documents the verified history and local behavior of baseline batch 1. It does not claim that the imported work was newly authored during this event, that the archived whitespace defect is fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above.
