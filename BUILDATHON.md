@@ -63,7 +63,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - The repository-declared `external-agents-tests` runner is installed through mise, and the shared compliance suite passes every applicable hooks, mandatory, token-calculator, and transcript-analyzer test; only capabilities not declared by this adapter are skipped.
 - The hosted curveball lint issue was remediated with localized, behavior-preserving changes. On head `d20a5ec`, the manually dispatched hosted [CI run](https://github.com/Subramanyarao11/external-agents/actions/runs/34019549183), [Lint run](https://github.com/Subramanyarao11/external-agents/actions/runs/34019548647), and [License Check run](https://github.com/Subramanyarao11/external-agents/actions/runs/34019549277) all passed; the pinned local lint gate and shared compliance suite also pass.
 - The GitHub Actions e2e adapter deliberately has no hosted `RunPrompt` implementation, causing five tagged lifecycle scenarios to fail locally.
-- Databricks and Control Room behavior may depend on credentials or external infrastructure and must not be described as live until demonstrated.
+- Control Room behavior may depend on credentials or external infrastructure and must not be described as live until demonstrated. The Databricks checkpoint below records the live behavior that was demonstrated.
 - Exact GitHub handles for Daksh and Rohit are pending.
 
 ## Team roles
@@ -150,8 +150,16 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - Independent verifier: `verify-github-actions.sh` now normalizes either an array or an object stream before extracting session/model/prompt/count evidence. The source-derived legacy sample and official 17-record JSONL fixture both pass locally.
 - Final semantic Graph diff: `entire graph diff --base afa145d570aa0afd5098c3410d7fd30a3bd6ed4d --head HEAD --json` reported the expected `parseSDKMessages` change, the JSONL normalization and incomplete-tail helpers, the curveball parser/capture/lifecycle tests, the independent verifier, and documentation. It found no unrelated implementation symbols. Graph reported `claude-action-execution-v2.jsonl` as unsupported because it has no JSONL parser, so the fixture was validated directly as 17 valid JSON records with no remaining `\_` display escapes.
 - Offline verification: curveball contract tests pass; the full GitHub Actions agent module passes and builds; `git diff --check` passes; ProofGate passes after granting its `httptest` loopback listener; untagged e2e passes; focused real-CLI `DetectAndEnable` and `HooksInstalledAfterEnable` lifecycle checks pass for `github-actions`.
-- Remaining verification gaps: the hosted GitHub Actions `RunPrompt` adapter remains unimplemented, so prompt/rewind/session-persistence lifecycle scenarios are not claimed. No credential-dependent hosted Action, Databricks deployment, or Control Room execution was performed.
-- GitHub Action run, blocked PR, approval receipt, successful rerun, Databricks proof, and demo video: pending.
+- Remaining verification gaps: the hosted GitHub Actions `RunPrompt` adapter remains unimplemented, so prompt/rewind/session-persistence lifecycle scenarios are not claimed. No credential-dependent hosted Action or Control Room execution was performed.
+- GitHub Action run, blocked PR, approval receipt, successful rerun, and demo video: pending. The Databricks proof is recorded below.
+
+### Live Databricks Free Edition verification
+
+- The first development bundle run, `929753662681220`, failed in `setup_tables`; `transform_evidence` was upstream-failed. The schema resource had received the development-mode prefix while both SQL tasks still received the raw schema variable.
+- After both task parameters were changed to `${resources.schemas.proofgate.name}`, run `975089155934964` completed successfully, with both `setup_tables` and `transform_evidence` passing. A real ProofGate export then succeeded, and follow-up run `231490749383713` also passed both tasks.
+- A live SQL check for synthetic event `evt-demo-pass-001` returned `bronze=1`, `silver=1`, `gold=1`, and `quarantine=0`.
+- Revalidation through profile `proofgate`, using the current workspace catalog, schema, and warehouse inputs, passed. Bundle resolution confirmed that development mode supplies a prefixed schema resource name, and the deployed fix is committed in this checkpoint.
+- The local environment file remained mode `600`, Git-excluded, untracked, and outside the commit. No workspace or credential identifiers are recorded here.
 
 ### Noon curveball Graph impact evidence
 
@@ -203,8 +211,9 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 ### Offline vs live distinction
 
 - **Offline (verified)**: All Go tests, builds, CLI examples, local structure verification, graph searches and diff.
-- **Live (unverified)**: Hosted GitHub Action execution, live Databricks deployment and SQL warehouse, Control Room running against real Databricks Apps, approval receipt round-trip with actual GitHub PR, warehouse sync and feedback loop with live credentials.
+- **Live (verified for the phase-one pipeline only)**: the development bundle, SQL warehouse, real ProofGate export, and Bronze → Silver → Gold transformation recorded above.
+- **Live (unverified for phase two)**: the ProofGate hosted GitHub Action, Control Room running as a Databricks App, approval receipt round-trip with an actual GitHub PR, Lakebase-backed state, warehouse sync, and feedback loop.
 
 ## Known limitations
 
-This record documents the verified history and local behavior of baseline batches 1 and 2. It does not claim that the imported work was newly authored during this event, that the archived whitespace defects are fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above for batch 1.
+This record documents the verified history and local behavior of baseline batches 1 and 2 plus the narrowly scoped live phase-one Databricks checkpoint above. It does not claim that the imported work was newly authored during this event, that the archived whitespace defects are fixed, or that the ProofGate hosted GitHub Action, live Control Room, phase-two Databricks application, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above for batch 1.
