@@ -92,7 +92,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 | Batch | Original commits | Planned branch | Scope from descriptive manifest labels | Status |
 |---:|---|---|---|---|
 | 1 of 3 | `7e106ff..6d1396d` (commits 1-5 after base `c47a489`) | `baseline/01-foundation` | Sponsor/platform research, contract fixtures, Claude checkpoint evidence, deterministic decision engine, and Databricks evidence pipeline | Imported with no-ff merge `14a4880`; verification recorded below; PR #2 merged at `2026-09-06T06:25:31Z` |
-| 2 of 3 | `3e63e9f..dcb6f5a` (commits 6-10) | To be created after batch 1 review | Control Room/GitHub approvals, Databricks deployment, change passports/Graph metadata, packaged Action/demo setup, and feedback/search stack | Pending batch 1 review |
+| 2 of 3 | `3e63e9f..dcb6f5a` (commits 6-10) | `baseline/02-control-room` | Control Room/GitHub approvals, Databricks deployment, change passports/Graph metadata, packaged Action/demo setup, and feedback/search stack | Imported with no-ff merge `02cb301`; verification recorded below |
 | 3 of 3 | `261b8cb..6414daf` (commits 11-14) | To be created after batch 2 review | Review continuity/rollout controls, JUnit evidence, Codex/Cursor capture, and final judging/Graph contracts | Pending batch 2 review |
 
 ## Kickoff Graph evidence
@@ -162,6 +162,49 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - Capture/checkpoint impact: `entire graph impact --repo . --symbol Agent.CaptureFinish --file agents/entire-agent-github-actions/internal/githubactions/capture.go --line 66 --format json` reported 17 callees, including parsing, raw `WriteSession`, modified files, summary, tokens/model, session resolution, and lifecycle dispatch. Source verification confirmed the adapter writes the native session and invokes `entire hooks`; Entire CLI owns shadow and persistent checkpoint writes.
 - Graph completeness: Go analysis had no parse failures. Two Databricks SQL parse warnings were unrelated to this Go adapter change and were verified not to affect the impact result.
 
+## Batch 2 import verification
+
+### Import details
+
+- Importer: Daksh
+- Branch: `baseline/02-control-room`
+- Archive source: `/Users/daksh/GolandProjects/Entire-ProofGate-Kickoff-Pack/git/proofgate-implementation.bundle`
+- Bundle verification: passed; complete SHA-1 history, base ref `c47a489`, archive tip `6414daf`.
+- Batch 2 commits (5 in order): `3e63e9f`, `7c615c5`, `2a34aa4`, `3f524e3`, `dcb6f5a`.
+- Literal Git subjects: `feat: add transactional ProofGate control room`; `feat: add Databricks-native ProofGate control plane`; `feat: build change passports from Entire checkpoints`; `feat: package ProofGate for GitHub Actions`; `feat: close the Databricks evidence feedback loop`.
+- Merge: `git merge --no-ff dcb6f5a -m "chore: import approved ProofGate baseline batch 2 of 3"` created merge commit `02cb301`.
+- Merge conflicts: none.
+
+### Graph evidence (batch 2)
+
+- Query 1: `entire graph search --repo . --profile full --query "Control Room human review approval receipt validation GitHub Actions"`
+  - Top results: GitHub Actions adapter methods (`Name`, `Binary`, `EntireAgent`), capture metadata (`githubMetadata`), hooks (`generatedAction`), and session directory paths.
+  - Verification: confirmed existing adapter structure. No Control Room symbols exist on main; batch 2 introduces the Control Room app under `proofgate/app/`.
+- Query 2: `entire graph search --repo . --profile full --query "Databricks control plane deployment evidence pipeline warehouse"`
+  - Top results: `historyEvidence`, `Evaluate`, `Client.execute`, `export`, `similaritySummary`, `fingerprint` in proofgate engine/warehouse code.
+  - Verification: confirmed batch 1 Databricks warehouse client and evaluator are intact. Batch 2 extends with phase 2 Databricks pipeline, warehouse feedback loop, and passport builder.
+- Semantic diff: `entire graph diff --base main --head HEAD --json` confirmed changes are confined to: `.github/actions/proofgate-evaluate/action.yml`, `proofgate/app/` (Control Room), `proofgate/cmd/proofgate/ci.go` and `ci_test.go`, `proofgate/passportbuilder/`, `proofgate/warehouse/` extensions, `proofgate/databricks/phase2/`, `proofgate/examples/`, and documentation updates. No unrelated implementation symbols were changed.
+- SQL parse warnings: Databricks SQL files (`001_setup.sql`, `002_transform.sql`) produce tree-sitter parse warnings (parameterized identifiers and `ARRAY<>` syntax). These are pre-existing from batch 1 and do not affect Go analysis.
+
+### Commands and results
+
+- `go test ./...` in `agents/entire-agent-github-actions`: **PASS** (including all curveball tests).
+- `go build ./...` in `agents/entire-agent-github-actions`: **PASS**.
+- `go test ./...` in `proofgate`: **PASS** (`cmd/proofgate`, `engine`, `passportbuilder`, `warehouse`).
+- `go build ./...` in `proofgate`: **PASS**.
+- `go test ./...` in `e2e`: **PASS**.
+- `./agents/entire-agent-github-actions/scripts/verify-github-actions.sh --sample`: **PASS** (local structure fixture; not a live GitHub runner verdict).
+- `go run ./cmd/proofgate evaluate --passport examples/pass.json --now 2026-09-04T12:00:00Z`: **PASS** (decision `PASS`).
+- `go run ./cmd/proofgate evaluate --passport examples/approval-required.json --now 2026-09-04T12:00:00Z`: **PASS** (decision `APPROVAL_REQUIRED`).
+- `go run ./cmd/proofgate export --passport examples/pass.json --now 2026-09-04T12:00:00Z --dry-run`: **PASS** (allowlisted event without network transmission).
+- `go test -v ./passportbuilder/`: **PASS** (4 tests: `TestBuildFromEntireCheckpointAndTestEvidence`, `TestBuildWithoutCheckpointPreservesAIAuthoredSignal`, `TestBuildDetectsSecretShapeWithoutRetainingDiff`, `TestSkippedRequiredSuiteIsMarkedMissing`).
+- `git diff --check main..HEAD`: **FAIL** — 7 archived whitespace defects (blank line at EOF) in `proofgate/app/.gitignore`, `proofgate/app/explainer.py`, `proofgate/app/similarity.py`, `proofgate/app/warehouse_sync.py`, `proofgate/databricks/phase2/README.md`, `proofgate/databricks/phase2/pipeline/proofgate_features.py`, `proofgate/examples/test-report.json`. These are from the original archived commits and were not modified.
+
+### Offline vs live distinction
+
+- **Offline (verified)**: All Go tests, builds, CLI examples, local structure verification, graph searches and diff.
+- **Live (unverified)**: Hosted GitHub Action execution, live Databricks deployment and SQL warehouse, Control Room running against real Databricks Apps, approval receipt round-trip with actual GitHub PR, warehouse sync and feedback loop with live credentials.
+
 ## Known limitations
 
-This record documents the verified history and local behavior of baseline batch 1. It does not claim that the imported work was newly authored during this event, that the archived whitespace defect is fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above.
+This record documents the verified history and local behavior of baseline batches 1 and 2. It does not claim that the imported work was newly authored during this event, that the archived whitespace defects are fixed, or that a hosted GitHub Action, live Control Room, Databricks deployment, approval artifact, or end-to-end rerun has been demonstrated. Shared protocol compliance was subsequently verified through the repository-declared mise dependency as recorded above for batch 1.
