@@ -1,0 +1,25 @@
+We are starting Subramanya's transparent baseline-import work for the Entire Track 3 Buildathon in this official Entire-mirrored clone.
+
+Before any action:
+1. Read AGENTS.md and .entire/graph-agent.md completely.
+2. Use Entire Graph as instructed for at least one definition/search lookup relevant to the external-agent integration, and verify the finding against source.
+3. Run entire status and inspect the current uncommitted setup files.
+4. Read /Users/subramanyarao/Desktop/Entire-ProofGate-Kickoff-Pack/README_FIRST.md, workflow/CHECKPOINT_AND_GRAPH_EVIDENCE.md, workflow/BUILDATHON_TEMPLATE.md, and git/COMMIT_MANIFEST.md.
+
+Then perform Subramanya's batch carefully:
+- Preserve honest provenance. The user reports that organizers approved reuse, but do not invent the approver, timestamp, link, or evidence. Mark documentary proof as pending if unavailable.
+- Create BUILDATHON.md containing initial understanding, architecture, assumptions, risks, team roles, the approved-baseline disclosure, and a table for the three ordered import batches.
+- Review and commit only the legitimate current Entire/Graph setup plus BUILDATHON.md on main with an accurate kickoff/setup message, then push main through the existing Entire mirror.
+- Verify the Git bundle at /Users/subramanyarao/Desktop/Entire-ProofGate-Kickoff-Pack/git/proofgate-implementation.bundle.
+- Add it temporarily as proofgate-archive and fetch archive/proofgate-implementation.
+- Confirm commits 1-5 exactly match the manifest and end at 6d1396d.
+- Create branch baseline/01-foundation from updated main.
+- Merge original commit 6d1396d with --no-ff and message exactly: chore: import approved ProofGate baseline batch 1 of 3. Do not cherry-pick, re-author, squash, amend, or alter the original five commits.
+- Inspect the resulting diff and source. Run git diff --check and every test available after commit 5, including Go tests in proofgate if the module exists. Fix nothing unrelated; report genuine failures.
+- Update BUILDATHON.md only with facts observed: original SHA range, importer Subramanya, verification commands/results, and PR link pending until created. Commit that documentation separately if needed.
+- Push baseline/01-foundation through the Entire mirror.
+- If GitHub CLI is authenticated, open a non-draft PR into main with explicit baseline-import title/body, approval disclosure, original SHA range, tests, Graph evidence, and no claim that the batch was newly authored today. Do not merge it.
+- Remove the temporary proofgate-archive remote after the branch is safely pushed.
+- End with exact branch, commits, test results, PR URL if created, remaining risks, and Entire/Graph evidence.
+
+Do not manufacture delays or timestamps. Work deliberately and let review/testing create the natural timeline.
