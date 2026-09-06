@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "6bc1bf48781a",
+  "strategy": "manual-commit",
+  "branch": "curveball/dual-format-resilience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "BUILDATHON.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6b/c1bf48781a/0/metadata.json",
+      "transcript": "/6b/c1bf48781a/0/full.jsonl",
+      "compact_transcript": "/6b/c1bf48781a/0/transcript.jsonl",
+      "content_hash": "/6b/c1bf48781a/0/content_hash.txt",
+      "prompt": "/6b/c1bf48781a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42600,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 328576,
+    "output_tokens": 2585,
+    "api_call_count": 11
+  }
+}
