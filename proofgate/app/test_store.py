@@ -17,6 +17,7 @@ sys.path.insert(0, str(APP_DIR))
 
 from app import create_server  # noqa: E402
 from decision_sync import DECISION_MERGE, DecisionPublisher  # noqa: E402
+from explainer import _content_text  # noqa: E402
 from github_dispatch import GitHubWorkflowDispatcher  # noqa: E402
 from similarity import LocalSimilarityFinder, create_similarity_finder  # noqa: E402
 from store import ReviewConflictError, SQLiteStore, ValidationError  # noqa: E402
@@ -226,6 +227,16 @@ class StoreTests(unittest.TestCase):
         ):
             finder = create_similarity_finder()
         self.assertIsInstance(finder, LocalSimilarityFinder)
+
+    def test_explanation_extracts_final_text_without_reasoning(self) -> None:
+        content = [
+            {"type": "reasoning", "summary": [{"text": "private reasoning"}]},
+            {"type": "output_text", "text": "Review is required. Verify the hard stop."},
+        ]
+        self.assertEqual(
+            _content_text(content),
+            "Review is required. Verify the hard stop.",
+        )
 
     def test_decision_publisher_binds_values_instead_of_interpolating(self) -> None:
         class FakeExecution:

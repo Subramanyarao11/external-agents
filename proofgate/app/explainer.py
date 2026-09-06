@@ -25,6 +25,23 @@ def _safe_evidence(gate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _content_text(content: Any) -> str:
+    """Extract only final text blocks from chat responses, never reasoning blocks."""
+    if isinstance(content, str):
+        return content.strip()
+    if not isinstance(content, (list, tuple)):
+        return ""
+    parts: list[str] = []
+    for block in content:
+        block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+        if str(block_type or "").lower() not in {"text", "output_text"}:
+            continue
+        text = block.get("text") if isinstance(block, dict) else getattr(block, "text", None)
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+    return "\n".join(parts)
+
+
 class DeterministicExplainer:
     """Offline preview used when Databricks Model Serving is unavailable."""
 
@@ -79,13 +96,18 @@ class DatabricksExplainer:
                     content="Safe structured evidence:\n" + json.dumps(evidence, sort_keys=True),
                 ),
             ],
-            max_tokens=140,
+            max_tokens=400,
             temperature=0.0,
         )
         if not response.choices or not response.choices[0].message:
             raise RuntimeError("explanation endpoint returned no message")
+        explanation = _content_text(response.choices[0].message.content)
+        if not explanation:
+            fallback = DeterministicExplainer().explain(gate)
+            fallback["generated_by"] = "deterministic-fallback"
+            return fallback
         return {
-            "explanation": response.choices[0].message.content,
+            "explanation": explanation,
             "generated_by": self.endpoint,
             "authority": "advisory_only",
             "evidence": evidence,
@@ -95,4 +117,3 @@ class DatabricksExplainer:
 def create_explainer() -> GateExplainer:
     endpoint = os.environ.get("PROOFGATE_EXPLANATION_MODEL", "").strip()
     return DatabricksExplainer(endpoint) if endpoint else DeterministicExplainer()
-
