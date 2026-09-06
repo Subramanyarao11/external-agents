@@ -58,7 +58,7 @@ The policy engine, rather than a language model, is the enforcement boundary. En
 - Later import batches have not yet been inspected or tested in this clone.
 - GitHub CLI authentication is available, but hosted Action execution and external service credentials are not yet verified.
 - `entire status` reports that Claude Code and OpenCode hooks are out of date; Codex is the build agent used for this kickoff session.
-- `entire status` reports that session tracking diverged from `HEAD` after the intentional history merge; the import ancestry itself is intact.
+- `entire status` reported that session tracking diverged from `HEAD` immediately after the intentional history merge; after the documentation commits and mirrored push, final status no longer reported that warning. The import ancestry is intact.
 - Batch 1 has one archived whitespace defect: `git diff --check main..HEAD` reports a new blank line at EOF in `agents/entire-agent-github-actions/scripts/verify-github-actions.sh`.
 - The shared `external-agents-tests` compliance runner is not installed on `PATH`, so local protocol compliance remains blocked pending that external test binary or CI.
 - The GitHub Actions e2e adapter deliberately has no hosted `RunPrompt` implementation, causing five tagged lifecycle scenarios to fail locally.
