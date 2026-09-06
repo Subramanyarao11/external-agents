@@ -1,0 +1,1 @@
+use remotion skill for video generation, and make a lamen vidoe(short) so that it's easy to understand and how and what our project do

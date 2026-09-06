@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "f4b82b04ce34",
+  "session_id": "e8d4158f-e553-4bff-8bdb-fc8cac12200d",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T10:11:06.2574Z",
+  "branch": "baseline/02-control-room",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/api.md",
+    "docs/architecture.md",
+    "docs/authentication.md",
+    "docs/database.md",
+    "docs/development.md",
+    "docs/overview.md",
+    "docs/project-structure.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6",
+  "turn_id": "ea847343e01b",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 20875,
+    "cache_read_tokens": 443637,
+    "output_tokens": 9380,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 73,
+      "cache_creation_tokens": 41343,
+      "cache_read_tokens": 261998,
+      "output_tokens": 24,
+      "api_call_count": 11
+    }
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T10:11:06.220585Z",
+    "agent_lines": 1553,
+    "agent_removed": 0,
+    "human_added": 708,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2261,
+    "total_lines_changed": 2261,
+    "agent_percentage": 68.68642193719593,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 23,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 23
+      }
+    }
+  ]
+}
